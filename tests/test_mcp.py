@@ -23,6 +23,10 @@ TOOLS = {
     "apply_codemod",
     "read_review_report",
     "review_patch",
+    "prepare_mutation_run",
+    "run_mutation_batch",
+    "verify_regression_test",
+    "get_mutation_run",
 }
 
 
@@ -201,7 +205,10 @@ async def test_review_patch_returns_repair_feedback_and_enforces_session_budget(
         assert first["baseline_status"] == "passed"
         assert first["metrics"]["pytest_processes"] == 1
         assert first["metrics"]["test_executions"] == 1
-        assert first["report_html"].endswith(".codelens\\review\\report.html")
+        assert (
+            Path(first["report_html"]).relative_to(repo).as_posix()
+            == ".codelens/review/report.html"
+        )
         session_id = first["session_id"]
 
         same_source = await call(

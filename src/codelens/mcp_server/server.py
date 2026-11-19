@@ -151,6 +151,10 @@ def create_server(repo_path: str | Path, *, allow_execution: bool = False) -> MC
             "both agent and developer. Mutation survivors call for test review, not production-code "
             "changes by default. Stop when the report says no_source_changes or "
             "repair_limit_reached. Tests and mutations require startup with --allow-execution. "
+            "For requested AI-guided mutation testing, use prepare_mutation_run after editing. "
+            "Propose requirement-specific regressions via run_mutation_batch. Poll pending IDs "
+            "with get_mutation_run. For meaningful survivors use verify_regression_test; adopt "
+            "only verified drafts, rerun the normal suite, and report unresolved behavior. "
             "Take a snapshot before applying a codemod."
         ),
     )
@@ -429,6 +433,9 @@ def create_server(repo_path: str | Path, *, allow_execution: bool = False) -> MC
         require_execution()
         return codemod(root, recipe_name, target_files)
 
+    from codelens.mutation.adapter import register
+
+    register(server, root, require_execution)
     return server
 
 

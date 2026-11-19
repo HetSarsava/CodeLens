@@ -28,6 +28,8 @@ separate client demo verifies the MCP protocol.
 > **Learning MCP?** [The practical guide](docs/mcp-guide.md) explains JSON-RPC,
 > client setup and the minimal LangGraph workflow.
 
+**Adaptive mutation testing.** Ask your agent to propose a realistic regression and verify that a test catches it. CodeLens returns the exact pytest case, assertion and observed output from isolated runs. [Setup and one-prompt example](docs/adaptive-mutation.md).
+
 ## Quickstart
 
 Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
@@ -82,7 +84,7 @@ unchanged for a human — rather than guessed at. The bundled example converts
 `codelens` is an MCP server first. Run
 `uv run codelens-mcp --repo /path/to/repo --allow-execution` to expose indexing,
 graph queries, codemods, git snapshot/rollback, a structured pytest wrapper, and
-patch review to compatible local stdio MCP clients. There are ten
+patch review to compatible local stdio MCP clients. There are fourteen
 working tools; query results are paginated and the graph stays on the server.
 `review_patch` runs bounded patch evidence, returns concise findings for the
 coding agent, and allows an initial review plus two changed-source re-reviews

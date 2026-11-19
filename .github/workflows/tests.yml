@@ -23,5 +23,10 @@ jobs:
         run: uv run --frozen ruff format --check .
       - name: Type check
         run: uv run --frozen mypy src/codelens
+      - name: Build the isolated pytest runner
+        if: runner.os == 'Linux'
+        run: docker build -t codelens-mutation:local -f docker/mutation.Dockerfile docker
       - name: Tests
+        env:
+          CODELENS_TEST_DOCKER: ${{ runner.os == 'Linux' && '1' || '0' }}
         run: uv run --frozen pytest -q
