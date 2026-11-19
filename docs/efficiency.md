@@ -1,6 +1,6 @@
 # Efficient dependency inspection
 
-Cartograph's first pilot found that a fast parser alone does not imply a cheaper
+CodeLens's first pilot found that a fast parser alone does not imply a cheaper
 agent task. Four Click graph calls took about 2.2 seconds, but caller and impact
 results returned about 39 KB of wire JSON. The assisted agent still used ordinary
 search and file reads. The pilot is exploratory: one run per condition, guided
@@ -8,7 +8,7 @@ tasks, differing cache reuse and validation choices, not a general speedup claim
 
 ## Changes informed by documentation
 
-| Guidance | Cartograph implementation |
+| Guidance | CodeLens implementation |
 | --- | --- |
 | Return focused context; paginate large responses | Locations only by default, 20 rows/page; full definition/caller metadata is opt-in |
 | Consolidate repeatedly chained operations | `blast_radius(name=...)` resolves the target and marks immediate callers in one request |
@@ -21,7 +21,7 @@ They are design hypotheses to evaluate, not a promise of a particular token redu
 
 The [MCP tools specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
 describes structured results and a serialized text fallback for compatibility.
-Cartograph retains the SDK's two representations and shrinks the data returned.
+CodeLens retains the SDK's two representations and shrinks the data returned.
 It does not equate wire bytes with model tokens.
 
 ## One dependency query

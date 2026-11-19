@@ -6,8 +6,8 @@ expected ranking and counts are obvious from reading the test.
 
 import pytest
 
-from cartograph.graph.models import Edge, EdgeKind, Symbol, SymbolGraph, SymbolKind
-from cartograph.webui.inspect import (
+from codelens.graph.models import Edge, EdgeKind, Symbol, SymbolGraph, SymbolKind
+from codelens.webui.inspect import (
     MAX_CACHED_GRAPHS,
     cache_graph,
     clear_cache,

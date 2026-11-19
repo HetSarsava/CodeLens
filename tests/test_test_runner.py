@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from cartograph.tools.test_runner import TestOutcome, run_tests
+from codelens.tools.test_runner import TestOutcome, run_tests
 
 FIXTURE_REPO = Path(__file__).parent / "fixtures" / "sample_repo"
 
@@ -59,7 +59,7 @@ def test_run_tests_against_sample_repo_fixture():
 
 
 def test_all_passed_rejects_interrupt_and_all_skipped_reports():
-    from cartograph.tools.test_runner import _to_result
+    from codelens.tools.test_runner import _to_result
 
     report = {"summary": {"total": 1, "passed": 1}, "tests": []}
     assert not _to_result([], 2, report).all_passed

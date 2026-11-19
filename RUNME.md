@@ -1,6 +1,6 @@
 # Run me
 
-Cartograph maps a Python repo's call graph and answers *"what breaks if I
+CodeLens maps a Python repo's call graph and answers *"what breaks if I
 change this?"* — then uses that graph to run a test-verified migration with
 an LLM in the loop for judgment only.
 
@@ -8,8 +8,8 @@ an LLM in the loop for judgment only.
 An API key is optional — most of it runs without one.
 
 ```bash
-git clone https://github.com/HetSarsava/Cartograph.git
-cd Cartograph
+git clone https://github.com/HetSarsava/CodeLens.git
+cd CodeLens
 uv sync --extra dev
 ```
 
@@ -19,10 +19,10 @@ uv sync --extra dev
 
 ```bash
 uv run pytest -q                      # offline suite; live-provider test needs a key
-uv run cartograph serve               # opens http://127.0.0.1:8765
+uv run codelens serve               # opens http://127.0.0.1:8765
 ```
 
-In the browser, on the **Explore** tab, click **Cartograph's own source**:
+In the browser, on the **Explore** tab, click **CodeLens's own source**:
 
 - `281 symbols · 1743 edges · 385 resolved · 1358 unresolved · 49 files`
 - A dependency map renders inline. Toggle **List / Diagram** for the
@@ -43,8 +43,8 @@ Then the **Inspect** tab — this is the point of the project:
 Prefer the terminal?
 
 ```bash
-uv run cartograph tree src/cartograph   # one self-contained HTML file, opens offline
-uv run cartograph index src/cartograph  # just the counts
+uv run codelens tree src/codelens   # one self-contained HTML file, opens offline
+uv run codelens index src/codelens  # just the counts
 ```
 
 ---
@@ -55,8 +55,8 @@ Get one at [console.groq.com/keys](https://console.groq.com/keys), then:
 
 ```bash
 cp .env.example .env                  # paste the key into GROQ_API_KEY
-uv run cartograph models              # confirm the model id is still live
-uv run cartograph demo
+uv run codelens models              # confirm the model id is still live
+uv run codelens demo
 ```
 
 It migrates a bundled sample repo from `unittest` to `pytest` and prints
@@ -76,14 +76,14 @@ a human instead of guessed at. The model never writes code: libcst does the
 rewrite against a real syntax tree, and every change is gated on the test
 suite, with git snapshot/rollback per step.
 
-`cartograph demo` works on a throwaway copy under `logs/`, so it's repeatable
+`codelens demo` works on a throwaway copy under `logs/`, so it's repeatable
 and never touches your files. The same thing is on the **Migrate** tab in the
 web UI, with the pipeline's log streaming live.
 
 To run it against your own repo (edits files in place — commit first):
 
 ```bash
-uv run cartograph run <repo> "convert unittest tests to pytest"
+uv run codelens run <repo> "convert unittest tests to pytest"
 ```
 
 ---
@@ -95,7 +95,7 @@ git snapshot/rollback, a structured pytest wrapper — is exposed over MCP for
 any client to call:
 
 ```bash
-uv run cartograph-mcp --repo /path/to/trusted-repo   # stdio, read-only by default
+uv run codelens-mcp --repo /path/to/trusted-repo   # stdio, read-only by default
 ```
 
 ---
@@ -109,7 +109,7 @@ $env:Path += ";$env:APPDATA\Python\Python312\Scripts"
 ```
 
 **A run fails with a 404 on the model** — the provider retired that id.
-`uv run cartograph models` lists what your key can use; put one in
+`uv run codelens models` lists what your key can use; put one in
 `GROQ_MODEL` in `.env`. Worth checking before a demo.
 
 **`Port 8765 is already in use`** — a server is already running. Use
@@ -136,6 +136,6 @@ the ten-tool discovery demo, and the explicit execution flag. LangGraph is now a
 four-stage sequence without checkpoints or graph retry loops.
 
 For the new patch-verification workflow, see [change review](docs/change-review.md):
-`uv run cartograph review-demo --output logs/change-review-demo` shows a covered
+`uv run codelens review-demo --output logs/change-review-demo` shows a covered
 mutation surviving weak tests and being detected by a stronger test. To review
-your own working tree: `uv run cartograph review --repo /path/to/project --base main`.
+your own working tree: `uv run codelens review --repo /path/to/project --base main`.

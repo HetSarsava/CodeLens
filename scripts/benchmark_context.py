@@ -1,6 +1,6 @@
 """Measure source bytes versus complete MCP impact-query request+response bytes.
 
-Usage: uv run python scripts/benchmark_context.py --repo src/cartograph
+Usage: uv run python scripts/benchmark_context.py --repo src/codelens
 This is a payload-size measurement, not a token, quality or latency benchmark.
 """
 
@@ -31,7 +31,7 @@ async def _git_output(repo: Path, *args: str) -> str:
 async def benchmark(repo: Path, names: list[str]) -> dict:
     params = StdioServerParameters(
         command=sys.executable,
-        args=["-m", "cartograph.mcp_server.server", "--repo", str(repo.resolve())],
+        args=["-m", "codelens.mcp_server.server", "--repo", str(repo.resolve())],
     )
     rows = []
     async with Client(stdio_client(params), read_timeout_seconds=60) as client:
@@ -77,7 +77,7 @@ async def benchmark(repo: Path, names: list[str]) -> dict:
                     "query_payload_bytes": payload_bytes,
                 }
             )
-    from cartograph.graph.indexer import index_repo
+    from codelens.graph.indexer import index_repo
 
     graph = index_repo(repo, use_cache=False)
     source_bytes = sum(
@@ -105,7 +105,7 @@ async def benchmark(repo: Path, names: list[str]) -> dict:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repo", type=Path, default=Path("src/cartograph"))
+    parser.add_argument("--repo", type=Path, default=Path("src/codelens"))
     parser.add_argument(
         "--names", nargs="+", default=["build_graph", "run_rewriter", "get_settings"]
     )

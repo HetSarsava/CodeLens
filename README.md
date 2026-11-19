@@ -1,6 +1,6 @@
-# Cartograph
+# CodeLens
 
-Cartograph reviews Python patches by connecting changed functions and caller paths
+CodeLens reviews Python patches by connecting changed functions and caller paths
 to actual pytest execution and bounded mutation checks. Its agent-callable review
 returns focused test-repair findings and permits two re-reviews after edits. It
 asks: **“Your tests passed—but did they distinguish the behavior you changed?”**
@@ -9,14 +9,14 @@ is needed.
 
 ```bash
 uv sync --extra dev
-uv run cartograph review-demo --output logs/change-review-demo
+uv run codelens review-demo --output logs/change-review-demo
 # Or review your own working tree:
-uv run cartograph review --repo /path/to/project --base main
+uv run codelens review --repo /path/to/project --base main
 ```
 
 The synthetic demo shows a covered discount calculation whose weak test misses a
 mutation, then a stronger test that detects it. Reports live under each demo repo's
-`.cartograph/review/`. [Usage, labels, and limitations](docs/change-review.md).
+`.codelens/review/`. [Usage, labels, and limitations](docs/change-review.md).
 Mutation testing and affected-test selection have established prior art; this is
 a focused evidence report, not proof that a patch is safe.
 
@@ -34,7 +34,7 @@ Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 uv sync                                  # install
-uv run cartograph tree src/cartograph    # no API key needed
+uv run codelens tree src/codelens    # no API key needed
 ```
 
 That writes a standalone HTML map of the codebase you can open by
@@ -42,16 +42,16 @@ double-clicking. For the full migration pipeline, add a Groq key:
 
 ```bash
 cp .env.example .env                     # paste your key from console.groq.com/keys
-uv run cartograph demo                   # migrate a bundled sample repo, end to end
+uv run codelens demo                   # migrate a bundled sample repo, end to end
 ```
 
-`cartograph demo` works on a throwaway copy, so you can run it as many times
+`codelens demo` works on a throwaway copy, so you can run it as many times
 as you like and always see the same before/after.
 
 ## What you can use it for
 
 **1. Understand an unfamiliar Python repo.**
-`cartograph tree <repo>` parses every `.py` file with tree-sitter and gives
+`codelens tree <repo>` parses every `.py` file with tree-sitter and gives
 you one self-contained HTML page: every file, class, and function, with each
 function's outgoing calls nested underneath it and resolved to their
 definitions. No server, no API key, no account. Useful for onboarding, code
@@ -71,7 +71,7 @@ radius, while a missing one is visible and documented. The UI shows the
 unresolved count and explains each one.
 
 **3. Run a mechanical migration you can actually trust.**
-`cartograph run <repo> "<task>"` migrates a codebase with an LLM in the
+`codelens run <repo> "<task>"` migrates a codebase with an LLM in the
 loop for judgment only. The rewrites themselves go through libcst against a
 real syntax tree, every change is gated on the test suite, and anything the
 codemod isn't certain about is **quarantined** — left byte-for-byte
@@ -79,8 +79,8 @@ unchanged for a human — rather than guessed at. The bundled example converts
 `unittest` assertions to plain `pytest` asserts.
 
 **4. Give a coding agent better tools.**
-`cartograph` is an MCP server first. Run
-`uv run cartograph-mcp --repo /path/to/repo --allow-execution` to expose indexing,
+`codelens` is an MCP server first. Run
+`uv run codelens-mcp --repo /path/to/repo --allow-execution` to expose indexing,
 graph queries, codemods, git snapshot/rollback, a structured pytest wrapper, and
 patch review to compatible local stdio MCP clients. There are ten
 working tools; query results are paginated and the graph stays on the server.
@@ -102,7 +102,7 @@ faster, more cheaply, and without hallucinating.
 
 ## The approach
 
-Cartograph pushes the structural understanding and the verification into
+CodeLens pushes the structural understanding and the verification into
 tools, and keeps the LLM's job narrow: make small, bounded decisions given
 context a tool already assembled. A tree-sitter-built symbol graph answers
 "who calls this" and "what breaks if I change it" without a model in the
@@ -119,13 +119,13 @@ Reporter summarizes what happened.
 ## Directory structure
 
 ```
-cartograph/
+codelens/
 ├── pyproject.toml
 ├── README.md
 ├── RUNME.md                          # two-minute setup + guided tour
 ├── .env.example
 ├── src/
-│   └── cartograph/
+│   └── codelens/
 │       ├── config.py                # environment, provider keys and test limits
 │       ├── providers/               # thin, swappable LLM provider abstraction
 │       │   ├── base.py              # Provider protocol
@@ -155,7 +155,7 @@ cartograph/
 │       │   ├── state.py             # RunState TypedDict
 │       │   ├── nodes.py             # node functions wrapping agents/tools
 │       │   └── graph.py             # builds and compiles the StateGraph
-│       ├── webui/                  # stdlib-only local UI (`cartograph serve`)
+│       ├── webui/                  # stdlib-only local UI (`codelens serve`)
 │       │   ├── server.py            # routes and request handling
 │       │   ├── inspect.py           # symbol search, blast radius, insights
 │       │   ├── page.py              # the single HTML page
@@ -202,13 +202,13 @@ Offline tests mock model responses; the live-provider test requires a Groq key.
   Five roles remain; execution uses an ordinary Python loop with one attempt
   per step and advisory ambiguity review. No checkpoint or graph retry cycle.
 - `webui/` — a stdlib-only local UI: index a repo from the browser and
-  watch a migration run live (`cartograph serve`)
+  watch a migration run live (`codelens serve`)
 
 ## Setup notes
 
 Only `run` and `demo` need `GROQ_API_KEY`; `index`, `tree`, and `serve` work
 without one. If a run fails with a 404 on the model id, the provider has
-retired it — `uv run cartograph models` lists what your key can currently
+retired it — `uv run codelens models` lists what your key can currently
 use, and you set the winner as `GROQ_MODEL` in `.env`.
 
 ## Common tasks
@@ -221,7 +221,7 @@ make setup       # uv sync
 make test        # full pytest suite, verbose
 make check       # lint + typecheck + test
 make demo        # full pipeline on a throwaway copy of the sample repo
-make run         # cartograph run against the sample fixture
+make run         # codelens run against the sample fixture
 make serve       # local web UI at http://127.0.0.1:8765
 make tree        # standalone HTML dependency tree for the fixture repo
 make mcp         # start the MCP server (stdio transport)
@@ -231,16 +231,16 @@ make help        # full list
 ## Commands
 
 ```bash
-cartograph demo                    # the whole pipeline on a bundled sample repo
-cartograph run <repo> "<task>"     # the full migration pipeline
-cartograph index <repo>            # index only, print summary counts
-cartograph index <repo> --visualize  # + live JSONL event stream to ./logs
-cartograph tree <repo>             # one self-contained HTML dependency tree
-cartograph serve                   # local web UI for the above
-cartograph models                  # list Groq model ids your key can use
+codelens demo                    # the whole pipeline on a bundled sample repo
+codelens run <repo> "<task>"     # the full migration pipeline
+codelens index <repo>            # index only, print summary counts
+codelens index <repo> --visualize  # + live JSONL event stream to ./logs
+codelens tree <repo>             # one self-contained HTML dependency tree
+codelens serve                   # local web UI for the above
+codelens models                  # list Groq model ids your key can use
 ```
 
-`cartograph tree` is the quickest way to see what the indexer found: it
+`codelens tree` is the quickest way to see what the indexer found: it
 writes a single HTML file you can open by double-clicking, with no server
 running. `--visualize` is the live counterpart — it streams events to
 `./logs/graph-events-*.jsonl` as indexing happens, for
@@ -248,7 +248,7 @@ running. `--visualize` is the live counterpart — it streams events to
 
 ### The web UI
 
-`cartograph serve` is the easiest way in — one page, two tabs:
+`codelens serve` is the easiest way in — one page, two tabs:
 
 - **Explore** — type a path or click an example, and the dependency map
   renders *inline* (full-screen toggle, or pop it into its own tab). Every
@@ -275,7 +275,7 @@ Keyboard: <kbd>/</kbd> jumps to the path box, <kbd>s</kbd> to symbol search,
 
 It binds to `127.0.0.1` only. It runs the indexer against whatever local
 path you hand it, so it is not safe to expose on a network. It deliberately
-won't rewrite an arbitrary directory — that stays a `cartograph run` decision
+won't rewrite an arbitrary directory — that stays a `codelens run` decision
 you make in a terminal.
 
 ## Reproducible MCP verification and context measurement
@@ -284,7 +284,7 @@ you make in a terminal.
 uv sync --frozen --extra dev
 uv run python examples/mcp_client.py tests/fixtures/sample_repo --name add
 uv run pytest -q
-uv run python scripts/benchmark_context.py --repo src/cartograph
+uv run python scripts/benchmark_context.py --repo src/codelens
 ```
 
 The benchmark measures UTF-8 source bytes versus complete impact-query request

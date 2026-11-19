@@ -1,6 +1,6 @@
-from cartograph.graph.models import Symbol, SymbolKind
-from cartograph.review.feedback import feedback_for
-from cartograph.review.models import (
+from codelens.graph.models import Symbol, SymbolKind
+from codelens.review.feedback import feedback_for
+from codelens.review.models import (
     ChangedFunction,
     Mutation,
     ReviewMetrics,

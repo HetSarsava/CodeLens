@@ -1,7 +1,7 @@
 <!--
-  Cartograph graph viewer — static HTML, inline CSS/JS, no build step, no
+  CodeLens graph viewer — static HTML, inline CSS/JS, no build step, no
   framework, no websocket. Polls a plain newline-delimited-JSON file (one
-  IndexEvent per line, written by cartograph.graph.event_sink.JsonlEventSink)
+  IndexEvent per line, written by codelens.graph.event_sink.JsonlEventSink)
   and renders the symbol graph growing live as graph.indexer.index_repo runs.
 
   HOW TO RUN THIS (read before opening):
@@ -14,11 +14,11 @@
   Instead, serve this whole repo over HTTP so the viewer and the .jsonl file
   are on the SAME origin, which sidesteps CORS entirely:
 
-      1. cd to the Cartograph repo root (the directory containing viewer/ and logs/)
+      1. cd to the CodeLens repo root (the directory containing viewer/ and logs/)
       2. python -m http.server 8000
       3. Open http://localhost:8000/viewer/graph_viewer.html
       4. Generate events in another terminal:
-             cartograph index tests/fixtures/sample_repo --visualize
+             codelens index tests/fixtures/sample_repo --visualize
          (prints the .jsonl path it's writing to, e.g. logs/graph-events-....jsonl)
       5. Paste that path (relative, e.g. "logs/graph-events-....jsonl") into the
          "Events file" field below and click Connect.
@@ -30,7 +30,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Cartograph Graph Viewer</title>
+<title>CodeLens Graph Viewer</title>
 <style>
   :root {
     --bg: #0f1115;

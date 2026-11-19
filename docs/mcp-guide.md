@@ -1,4 +1,4 @@
-# MCP, using Cartograph as the example
+# MCP, using CodeLens as the example
 
 For efficient dependency inspection, call `blast_radius` with `name` directly:
 
@@ -23,7 +23,7 @@ Queries do not create cache files inside your repository.
 Design references: [Anthropic's tool guidance](https://www.anthropic.com/engineering/writing-tools-for-agents)
 recommends focused results, pagination and consolidating repeated tool sequences.
 [MCP structured output](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
-documents structured results and text compatibility. Cartograph keeps both SDK
+documents structured results and text compatibility. CodeLens keeps both SDK
 representations for compatibility; it reduces the payload itself instead of
 removing the text fallback.
 
@@ -31,7 +31,7 @@ removing the text fallback.
 
 1. **Host:** the AI application you use.
 2. **Client:** the host's connection to a tool server.
-3. **Server:** Cartograph, which advertises tools and executes requested functions.
+3. **Server:** CodeLens, which advertises tools and executes requested functions.
 4. **Transport:** stdio carries messages between the local processes.
 
 An LLM can decide which tool to request, but MCP itself does not require an
@@ -45,7 +45,7 @@ or an error. Notifications omit the ID.
 
 ## Where the JSON-RPC code lives
 
-`src/cartograph/mcp_server/server.py` imports `MCPServer` from the official
+`src/codelens/mcp_server/server.py` imports `MCPServer` from the official
 Python SDK. `@server.tool()` registers your functions; `server.run(transport="stdio")`
 starts the wire protocol. The installed SDK's
 `mcp/shared/jsonrpc_dispatcher.py` and `mcp/server/stdio.py` implement framing
@@ -58,7 +58,7 @@ For example, after a legacy initialization handshake, a client can send:
 {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"find_definition","arguments":{"name":"add"}}}
 ```
 
-Cartograph's SDK routes that to `find_definition(name="add")` and serializes
+CodeLens's SDK routes that to `find_definition(name="add")` and serializes
 the result. This exact transport behavior is tested in `tests/test_mcp.py`.
 
 Protocol versions matter: the older `2025-11-25` lifecycle uses
@@ -79,7 +79,7 @@ uv run python examples/mcp_client.py tests/fixtures/sample_repo --name add
 uv run pytest -q tests/test_mcp.py
 ```
 
-The example starts a separate Cartograph server, discovers ten tools,
+The example starts a separate CodeLens server, discovers ten tools,
 indexes the sample and queries a definition. The tests additionally exercise
 callers, impact, invalid arguments, write gating, a real codemod, pytest,
 snapshot/rollback and raw JSON-RPC messages.
@@ -90,11 +90,11 @@ paths (the configuration file location depends on your host):
 ```json
 {
   "mcpServers": {
-    "cartograph": {
+    "codelens": {
       "command": "uv",
       "args": [
-        "--directory", "/absolute/path/to/Cartograph",
-        "run", "--frozen", "cartograph-mcp",
+        "--directory", "/absolute/path/to/CodeLens",
+        "run", "--frozen", "codelens-mcp",
         "--repo", "/absolute/path/to/trusted-python-repository"
       ]
     }
@@ -102,7 +102,7 @@ paths (the configuration file location depends on your host):
 }
 ```
 
-On Windows, use forward slashes in the JSON paths, such as `C:/Projects/Cartograph`.
+On Windows, use forward slashes in the JSON paths, such as `C:/Projects/CodeLens`.
 Append `--allow-execution` to the argument array only when you want the client
 to execute tests and mutate that repository. No Groq key is needed for MCP tools.
 A client must support local stdio; cloud-only HTTP clients cannot directly
@@ -126,7 +126,7 @@ using the old signatures must update their calls.
 Read `pipeline/graph.py`, then `execute_plan_node` in `pipeline/nodes.py`.
 A state dictionary carries values. A node reads it and returns updates.
 Edges say which stage runs next. Compilation builds an executable workflow.
-Invocation starts it. Cartograph uses four sequential stages and ordinary
+Invocation starts it. CodeLens uses four sequential stages and ordinary
 Python for per-step work.
 [LangGraph's Graph API](https://docs.langchain.com/oss/python/langgraph/graph-api)
 

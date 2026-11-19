@@ -5,8 +5,8 @@ efficiency changes. No claim of novel mutation testing or guaranteed safe change
 
 ## Product and acceptance criteria
 
-`cartograph review --base main --repo .` reviews the working tree against a Git
-commit. It writes `.cartograph/review/report.json` and a standalone HTML report.
+`codelens review --base main --repo .` reviews the working tree against a Git
+commit. It writes `.codelens/review/report.json` and a standalone HTML report.
 No API key or model is required. Tests execute trusted project code in disposable
 copies, never by mutating the user's source checkout.
 
@@ -40,7 +40,7 @@ copies, never by mutating the user's source checkout.
 
 ## Boundaries
 
-Python/pytest, local Git repos, same interpreter/dependencies as Cartograph.
+Python/pytest, local Git repos, same interpreter/dependencies as CodeLens.
 No xdist or subprocess coverage in this MVP. Coverage and graph evidence are
 partial; runtime aliases, external services, import-time behavior, shared fixture
 reuse and nondeterministic tests require human review. Do not skip the real CI
@@ -73,7 +73,7 @@ Validation: 194 tests passed and one live-provider test skipped in the full suit
 The final isolation/rendering changes were additionally checked by all 16 review
 tests. Ruff and mypy pass for the changed review/MCP modules. Both real generated
 reports were inspected in the in-app browser. Artifacts are under
-`logs/change-review-demo/{weak,strong}/.cartograph/review/` (ignored by Git).
+`logs/change-review-demo/{weak,strong}/.codelens/review/` (ignored by Git).
 
 ## Agent workflow extension
 
@@ -83,4 +83,4 @@ baseline diagnostics, and tracks one initial review plus two changed-source
 re-reviews per session. Same-source calls do not rerun. HTML/JSON and MCP output
 include wall time, pytest process/test counts and mutation attempts. Model-token
 usage remains host telemetry and is reported as unavailable. The coding agent
-does repairs; Cartograph never edits source as part of this review loop.
+does repairs; CodeLens never edits source as part of this review loop.

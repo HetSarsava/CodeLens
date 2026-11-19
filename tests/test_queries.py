@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from cartograph.graph.indexer import index_repo
-from cartograph.graph.queries import blast_radius, find_callers, find_definition
+from codelens.graph.indexer import index_repo
+from codelens.graph.queries import blast_radius, find_callers, find_definition
 
 FIXTURE_REPO = Path(__file__).parent / "fixtures" / "sample_repo"
 

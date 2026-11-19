@@ -1,4 +1,4 @@
-# Cartograph dev tasks for PowerShell (mirrors the Makefile 1:1 for
+# CodeLens dev tasks for PowerShell (mirrors the Makefile 1:1 for
 # environments without GNU make). Usage:
 #   .\make.ps1 test
 #   .\make.ps1 run
@@ -24,10 +24,10 @@ function Invoke-Setup { uv sync }
 function Invoke-Dev { uv sync --extra dev }
 function Invoke-Test { uv run pytest -v }
 function Invoke-TestFast { uv run pytest -q }
-function Invoke-TestCov { uv run pytest --cov=cartograph --cov-report=term-missing }
+function Invoke-TestCov { uv run pytest --cov=codelens --cov-report=term-missing }
 function Invoke-Lint { uv run ruff check . }
 function Invoke-Format { uv run ruff format . }
-function Invoke-Typecheck { uv run mypy src/cartograph }
+function Invoke-Typecheck { uv run mypy src/codelens }
 
 function Invoke-Check {
     Invoke-Lint
@@ -37,12 +37,12 @@ function Invoke-Check {
     Invoke-TestFast
 }
 
-function Invoke-Demo { uv run cartograph demo }
-function Invoke-Models { uv run cartograph models }
-function Invoke-Run { uv run cartograph run $Repo $Task }
-function Invoke-Serve { uv run cartograph serve }
-function Invoke-Tree { uv run cartograph tree $Repo }
-function Invoke-Mcp { uv run python -m cartograph.mcp_server.server }
+function Invoke-Demo { uv run codelens demo }
+function Invoke-Models { uv run codelens models }
+function Invoke-Run { uv run codelens run $Repo $Task }
+function Invoke-Serve { uv run codelens serve }
+function Invoke-Tree { uv run codelens tree $Repo }
+function Invoke-Mcp { uv run python -m codelens.mcp_server.server }
 
 function Invoke-Clean {
     Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" -ErrorAction SilentlyContinue |
@@ -56,7 +56,7 @@ function Invoke-CleanLogs {
 }
 
 function Show-Help {
-    Write-Host "Cartograph dev tasks (PowerShell):"
+    Write-Host "CodeLens dev tasks (PowerShell):"
     Write-Host "  .\make.ps1 setup       uv sync (install runtime deps into .venv)"
     Write-Host "  .\make.ps1 dev         uv sync --extra dev (adds ruff/mypy/pytest-asyncio)"
     Write-Host "  .\make.ps1 test        run the full pytest suite, verbose"
@@ -64,11 +64,11 @@ function Show-Help {
     Write-Host "  .\make.ps1 test-cov    run pytest with coverage (requires 'dev')"
     Write-Host "  .\make.ps1 lint        ruff check ."
     Write-Host "  .\make.ps1 format      ruff format ."
-    Write-Host "  .\make.ps1 typecheck   mypy src/cartograph"
+    Write-Host "  .\make.ps1 typecheck   mypy src/codelens"
     Write-Host "  .\make.ps1 check       lint + typecheck + test-fast"
     Write-Host "  .\make.ps1 demo        full pipeline on a throwaway copy of the sample repo"
     Write-Host "  .\make.ps1 models      list Groq model ids your API key can use"
-    Write-Host "  .\make.ps1 run         cartograph run <Repo> <Task>"
+    Write-Host "  .\make.ps1 run         codelens run <Repo> <Task>"
     Write-Host "                         override: .\make.ps1 run -Repo ... -Task '...'"
     Write-Host "  .\make.ps1 serve       start the local web UI (http://127.0.0.1:8765)"
     Write-Host "  .\make.ps1 tree        build a standalone dependency tree for <Repo>"

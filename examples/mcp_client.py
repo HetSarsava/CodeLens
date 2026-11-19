@@ -12,7 +12,7 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 async def main(repo: str, name: str) -> None:
     params = StdioServerParameters(
         command=sys.executable,
-        args=["-m", "cartograph.mcp_server.server", "--repo", repo],
+        args=["-m", "codelens.mcp_server.server", "--repo", repo],
     )
     async with Client(stdio_client(params), read_timeout_seconds=30) as client:
         tools = await client.list_tools()

@@ -8,18 +8,18 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from cartograph.cli import cli
-from cartograph.graph.indexer import index_repo
-from cartograph.review.changes import candidates, changed_functions, diff_lines, git
-from cartograph.review.engine import classify_mutation, review
-from cartograph.review.models import RunEvidence
-from cartograph.review.runner import run_pytest
+from codelens.cli import cli
+from codelens.graph.indexer import index_repo
+from codelens.review.changes import candidates, changed_functions, diff_lines, git
+from codelens.review.engine import classify_mutation, review
+from codelens.review.models import RunEvidence
+from codelens.review.runner import run_pytest
 
 
 def make_repo(root: Path, *, strong: bool = False) -> Path:
     root.mkdir()
     (root / "tests").mkdir()
-    (root / ".gitignore").write_text(".cartograph/\n__pycache__/\n.pytest_cache/\n")
+    (root / ".gitignore").write_text(".codelens/\n__pycache__/\n.pytest_cache/\n")
     (root / "shop.py").write_text(
         "def total(subtotal, discount=0):\n    return subtotal\n\n"
         "def checkout(subtotal, discount=0):\n    return total(subtotal, discount)\n",
@@ -57,7 +57,7 @@ def test_real_review_distinguishes_execution_from_detection(tmp_path, strong, ex
     repo = make_repo(tmp_path / "repo", strong=strong)
     before = (repo / "shop.py").read_bytes()
     patch_before = git(repo, "diff")
-    output = repo / ".cartograph/review"
+    output = repo / ".codelens/review"
     test_paths = [str(repo / "tests")] if strong else ["tests"]
     report = review(repo, "HEAD", output, test_paths, timeout=20)
     assert report.baseline.status == "passed"
@@ -91,11 +91,11 @@ def test_real_review_distinguishes_execution_from_detection(tmp_path, strong, ex
 def test_baseline_failure_never_credits_mutations(tmp_path):
     repo = make_repo(tmp_path / "repo")
     (repo / "tests/test_shop.py").write_text("def test_bad():\n    assert False\n")
-    report = review(repo, "HEAD", repo / ".cartograph/review", ["tests"], timeout=20)
+    report = review(repo, "HEAD", repo / ".codelens/review", ["tests"], timeout=20)
     assert report.status == "baseline_failed"
     assert report.baseline.status == "failed"
     assert all(m.status == "baseline_unavailable" and m.run is None for m in report.mutations)
-    html = (repo / ".cartograph/review/report.html").read_text(encoding="utf-8")
+    html = (repo / ".codelens/review/report.html").read_text(encoding="utf-8")
     assert "Baseline needs attention" in html and "Your tests passed" not in html
 
 
@@ -104,9 +104,7 @@ def test_unexecuted_and_budget_exhaustion(tmp_path):
     (repo / "shop.py").write_text(
         (repo / "shop.py").read_text() + "\ndef unused(x):\n    return x + 1\n"
     )
-    report = review(
-        repo, "HEAD", repo / ".cartograph/review", ["tests"], max_mutations=0, timeout=20
-    )
+    report = review(repo, "HEAD", repo / ".codelens/review", ["tests"], max_mutations=0, timeout=20)
     assert {m.status for m in report.mutations} == {"budget_exhausted", "unexecuted"}
     assert all(m.run is None for m in report.mutations)
     assert report.status == "incomplete"
@@ -181,7 +179,7 @@ def test_cli_and_html_escape_repository_content(tmp_path):
         ["review", "--base", "HEAD", "--repo", str(repo), "--fail-on-survivor", "--timeout", "20"],
     )
     assert result.exit_code == 1, result.output
-    html = (repo / ".cartograph/review/report.html").read_text(encoding="utf-8")
+    html = (repo / ".codelens/review/report.html").read_text(encoding="utf-8")
     assert "<script>" not in html
     assert "&lt;script&gt;" in html
     result = CliRunner().invoke(cli, ["review", "--base", "--not-a-ref", "--repo", str(repo)])
@@ -195,7 +193,7 @@ def test_selected_test_control_must_pass_before_mutation(tmp_path):
         "def test_first():\n    state.append(1)\n"
         "def test_second():\n    assert state\n    assert checkout(100, 0) == 100\n"
     )
-    report = review(repo, "HEAD", repo / ".cartograph/review", ["tests"], timeout=20)
+    report = review(repo, "HEAD", repo / ".codelens/review", ["tests"], timeout=20)
     assert report.baseline.status == "passed"
     assert report.mutations[0].status == "unstable_control"
     assert report.mutations[0].run is None
@@ -204,4 +202,4 @@ def test_selected_test_control_must_pass_before_mutation(tmp_path):
 def test_reject_outside_test_paths_before_execution(tmp_path):
     repo = make_repo(tmp_path / "repo")
     with pytest.raises(ValueError, match="inside the repository"):
-        review(repo, "HEAD", repo / ".cartograph/review", ["../"], timeout=20)
+        review(repo, "HEAD", repo / ".codelens/review", ["../"], timeout=20)

@@ -1,13 +1,13 @@
-# Cartograph architecture
+# CodeLens architecture
 
-Cartograph's patch review joins Git changes, Tree-sitter functions, per-test
+CodeLens's patch review joins Git changes, Tree-sitter functions, per-test
 coverage and bounded mutations into an evidence report. MCP is its integration
 boundary; LangGraph remains a separate small migration example.
 
 ```mermaid
 flowchart LR
     Host["AI host + MCP client"] -->|"JSON-RPC 2.0 over stdio"| SDK["Official MCP SDK"]
-    SDK --> Tools["Ten Cartograph tools"]
+    SDK --> Tools["Ten CodeLens tools"]
     Tools --> Index["tree-sitter symbol graph"]
     Tools --> Actions["libcst / pytest / Git"]
     Workflow["Minimal LangGraph workflow"] -->|"ordinary Python calls"| Actions
@@ -25,7 +25,7 @@ flowchart LR
 `mcp_server/server.py` constructs the official SDK's `MCPServer`.
 Decorated functions become tools with generated input/output schemas.
 The SDK implements JSON-RPC framing, protocol negotiation, tool discovery,
-validation, dispatch and protocol errors. Cartograph implements the functions.
+validation, dispatch and protocol errors. CodeLens implements the functions.
 
 The lockfile uses MCP SDK **2.0.0**; the dependency requirement is
 `mcp>=2.0.0,<3`, matching the imported API.
@@ -84,7 +84,7 @@ unmutated source, and checks one mutant per fresh disposable copy. Failed contro
 timeouts and collection errors are inconclusive. `render.py` writes escaped HTML
 and a versioned JSON report with runtime and execution counts. `review_patch`
 returns compact findings, bounded log context and a two-round repair budget to
-the coding agent; the agent, not Cartograph, edits code. `read_review_report`
+the coding agent; the agent, not CodeLens, edits code. `read_review_report`
 recalculates source freshness. [Full behavior and limits](change-review.md).
 
 ## LangGraph: four sequential stages, five roles

@@ -1,6 +1,6 @@
 """Tests for tools.snapshot: snapshot()/rollback() via git plumbing, in scratch repos."""
 
-from cartograph.tools.snapshot import rollback, snapshot
+from codelens.tools.snapshot import rollback, snapshot
 
 
 def test_snapshot_and_rollback_restores_modified_file(tmp_path):

@@ -1,11 +1,11 @@
 [project]
-name = "cartograph"
+name = "codelens"
 version = "0.1.0"
 description = "Python patch evidence: dependency paths, per-test execution and bounded mutation checks, with MCP tools."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
-authors = [{ name = "Cartograph" }]
+authors = [{ name = "CodeLens" }]
 dependencies = [
     "mcp>=2.0.0,<3",
     "langgraph>=0.2.0",
@@ -23,8 +23,8 @@ dependencies = [
 ]
 
 [project.scripts]
-cartograph = "cartograph.cli:main"
-cartograph-mcp = "cartograph.mcp_server.server:main"
+codelens = "codelens.cli:main"
+codelens-mcp = "codelens.mcp_server.server:main"
 
 [project.optional-dependencies]
 dev = [
@@ -39,7 +39,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/cartograph"]
+packages = ["src/codelens"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -55,5 +55,5 @@ target-version = "py312"
 
 [tool.mypy]
 python_version = "3.12"
-packages = ["cartograph"]
+packages = ["codelens"]
 ignore_missing_imports = true

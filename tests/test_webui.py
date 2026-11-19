@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
-from cartograph.webui.jobs import JobRunner, find_sample_repo
-from cartograph.webui.page import PAGE
-from cartograph.webui.server import (
+from codelens.webui.jobs import JobRunner, find_sample_repo
+from codelens.webui.page import PAGE
+from codelens.webui.server import (
     PortInUseError,
     bind,
     build_tree,
@@ -177,7 +177,7 @@ def test_build_tree_tolerates_surrounding_whitespace(tmp_path):
 
 
 def test_bind_raises_port_in_use_for_a_taken_port():
-    """`cartograph serve` must be able to detect a taken port *before* it
+    """`codelens serve` must be able to detect a taken port *before* it
     prints a success banner, so a second run gets one clean line instead of
     a false 'running at ...' followed by a traceback."""
     import socket
@@ -204,7 +204,7 @@ def test_bind_returns_a_usable_server_on_a_free_port():
 
 
 def test_a_second_bind_on_the_same_port_is_refused_not_silently_shared():
-    """Two `cartograph serve` runs on one port must not both succeed.
+    """Two `codelens serve` runs on one port must not both succeed.
 
     `http.server` enables SO_REUSEADDR, which on Windows lets a second
     process bind a port another is actively listening on — both servers then
@@ -262,8 +262,8 @@ def test_job_runner_streams_pipeline_log_lines_to_the_job():
     runner = JobRunner()
 
     def work(job, lock):
-        logging.getLogger("cartograph.pipeline.nodes").info("[tool:index_repo] symbols=18")
-        logging.getLogger("cartograph.webui.server").info("noise that should not show")
+        logging.getLogger("codelens.pipeline.nodes").info("[tool:index_repo] symbols=18")
+        logging.getLogger("codelens.webui.server").info("noise that should not show")
         return {}
 
     job = _wait(runner, runner.start(work))

@@ -6,14 +6,14 @@ from unittest.mock import patch
 
 import pytest
 
-from cartograph.agents.adjudicator import AdjudicationDecision, AdjudicatorResponse
-from cartograph.agents.planner import PlannerResponse, PlanStep
-from cartograph.agents.reporter import ReporterResponse
-from cartograph.agents.rewriter import run_rewriter as real_run_rewriter
-from cartograph.agents.scout import ScoutResponse
-from cartograph.config import get_settings
-from cartograph.pipeline.graph import build_graph
-from cartograph.pipeline.state import RunState
+from codelens.agents.adjudicator import AdjudicationDecision, AdjudicatorResponse
+from codelens.agents.planner import PlannerResponse, PlanStep
+from codelens.agents.reporter import ReporterResponse
+from codelens.agents.rewriter import run_rewriter as real_run_rewriter
+from codelens.agents.scout import ScoutResponse
+from codelens.config import get_settings
+from codelens.pipeline.graph import build_graph
+from codelens.pipeline.state import RunState
 
 FIXTURE_REPO = Path(__file__).parent / "fixtures" / "sample_repo"
 
@@ -69,13 +69,13 @@ def test_pipeline_quarantines_ambiguous_step_without_looping(sample_repo, decisi
     mock_report = ReporterResponse(report_markdown="# mock report")
 
     with (
-        patch("cartograph.pipeline.nodes.run_scout", return_value=mock_scout) as scout_mock,
-        patch("cartograph.pipeline.nodes.run_planner", return_value=mock_planner) as planner_mock,
-        patch("cartograph.pipeline.nodes.run_rewriter", wraps=real_run_rewriter) as rewriter_mock,
+        patch("codelens.pipeline.nodes.run_scout", return_value=mock_scout) as scout_mock,
+        patch("codelens.pipeline.nodes.run_planner", return_value=mock_planner) as planner_mock,
+        patch("codelens.pipeline.nodes.run_rewriter", wraps=real_run_rewriter) as rewriter_mock,
         patch(
-            "cartograph.pipeline.nodes.run_adjudicator", return_value=mock_adjudication
+            "codelens.pipeline.nodes.run_adjudicator", return_value=mock_adjudication
         ) as adjudicator_mock,
-        patch("cartograph.pipeline.nodes.run_reporter", return_value=mock_report) as reporter_mock,
+        patch("codelens.pipeline.nodes.run_reporter", return_value=mock_report) as reporter_mock,
     ):
         graph = build_graph()
         initial_state: RunState = {
@@ -128,24 +128,24 @@ def test_pipeline_runs_end_to_end_with_real_agents(sample_repo):
 
 @pytest.mark.parametrize("count", [0, 40])
 def test_empty_and_long_plans_need_no_graph_loop(sample_repo, count):
-    from cartograph.agents.rewriter import RewriterResponse
+    from codelens.agents.rewriter import RewriterResponse
 
     steps = [PlanStep(symbol_id=f"a.py::f{i}", action="review") for i in range(count)]
     with (
         patch(
-            "cartograph.pipeline.nodes.run_scout",
+            "codelens.pipeline.nodes.run_scout",
             return_value=ScoutResponse(relevant_symbol_ids=[], reasoning="test"),
         ),
         patch(
-            "cartograph.pipeline.nodes.run_planner",
+            "codelens.pipeline.nodes.run_planner",
             return_value=PlannerResponse(steps=steps, summary="test"),
         ),
         patch(
-            "cartograph.pipeline.nodes.run_rewriter",
+            "codelens.pipeline.nodes.run_rewriter",
             return_value=RewriterResponse(success=False, final_summary="no recipe"),
         ) as rewrite,
         patch(
-            "cartograph.pipeline.nodes.run_reporter",
+            "codelens.pipeline.nodes.run_reporter",
             return_value=ReporterResponse(report_markdown="test"),
         ),
     ):
@@ -159,11 +159,11 @@ def test_successful_step_rewrites_and_tests(sample_repo):
     symbol_id = "tests/test_legacy_unittest.py::ArithmeticTests.test_add"
     with (
         patch(
-            "cartograph.pipeline.nodes.run_scout",
+            "codelens.pipeline.nodes.run_scout",
             return_value=ScoutResponse(relevant_symbol_ids=[symbol_id], reasoning="test"),
         ),
         patch(
-            "cartograph.pipeline.nodes.run_planner",
+            "codelens.pipeline.nodes.run_planner",
             return_value=PlannerResponse(
                 steps=[
                     PlanStep(
@@ -173,9 +173,9 @@ def test_successful_step_rewrites_and_tests(sample_repo):
                 summary="test",
             ),
         ),
-        patch("cartograph.pipeline.nodes.run_adjudicator") as adjudicate,
+        patch("codelens.pipeline.nodes.run_adjudicator") as adjudicate,
         patch(
-            "cartograph.pipeline.nodes.run_reporter",
+            "codelens.pipeline.nodes.run_reporter",
             return_value=ReporterResponse(report_markdown="test"),
         ),
     ):
@@ -193,9 +193,9 @@ def test_successful_step_rewrites_and_tests(sample_repo):
 def test_rewriter_restores_even_when_a_dependency_raises(tmp_path, failure):
     from unittest.mock import Mock
 
-    from cartograph.agents.rewriter import RewriterRequest
-    from cartograph.providers.base import ProviderError
-    from cartograph.tools.test_runner import TestRunResult
+    from codelens.agents.rewriter import RewriterRequest
+    from codelens.providers.base import ProviderError
+    from codelens.tools.test_runner import TestRunResult
 
     target = tmp_path / "test_a.py"
     original = "import unittest\nclass T(unittest.TestCase):\n    def test_a(self):\n        self.assertEqual(1, 2)\n"
@@ -225,13 +225,13 @@ def test_rewriter_restores_even_when_a_dependency_raises(tmp_path, failure):
         raise RuntimeError("tool crashed")
 
     if failure == "codemod":
-        context = patch("cartograph.agents.rewriter.apply_codemod", side_effect=corrupt_then_raise)
+        context = patch("codelens.agents.rewriter.apply_codemod", side_effect=corrupt_then_raise)
     elif failure == "test_runner":
         context = patch(
-            "cartograph.agents.rewriter.run_tests", side_effect=RuntimeError("tool crashed")
+            "codelens.agents.rewriter.run_tests", side_effect=RuntimeError("tool crashed")
         )
     else:
-        context = patch("cartograph.agents.rewriter.run_tests", return_value=bad_tests)
+        context = patch("codelens.agents.rewriter.run_tests", return_value=bad_tests)
     with context, pytest.raises((ProviderError, RuntimeError)):
         real_run_rewriter(provider, request)
     assert target.read_text() == original

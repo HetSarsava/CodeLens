@@ -9,8 +9,8 @@ refuse to guess at).
 import libcst as cst
 import pytest
 
-from cartograph.tools import codemod
-from cartograph.tools.recipes.unittest_to_pytest import UnittestToPytestRecipe
+from codelens.tools import codemod
+from codelens.tools.recipes.unittest_to_pytest import UnittestToPytestRecipe
 
 
 def _transform(source: str) -> tuple[str, list[codemod.CodemodAmbiguity]]:

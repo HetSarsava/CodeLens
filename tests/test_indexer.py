@@ -4,11 +4,11 @@ from pathlib import Path
 
 import tree_sitter
 
-from cartograph.graph import indexer as indexer_module
-from cartograph.graph.cache import load_cache
-from cartograph.graph.events import IndexEvent, IndexEventKind
-from cartograph.graph.indexer import index_repo
-from cartograph.graph.models import SymbolKind
+from codelens.graph import indexer as indexer_module
+from codelens.graph.cache import load_cache
+from codelens.graph.events import IndexEvent, IndexEventKind
+from codelens.graph.indexer import index_repo
+from codelens.graph.models import SymbolKind
 
 FIXTURE_REPO = Path(__file__).parent / "fixtures" / "sample_repo"
 
@@ -372,7 +372,7 @@ def test_cache_second_run_reparses_nothing_and_returns_identical_graph(tmp_path,
 
     assert count() == 0, "unchanged files must not be re-parsed on a cache hit"
     assert graph1 == graph2
-    cache_dir = tmp_path / ".cartograph" / "index_cache"
+    cache_dir = tmp_path / ".codelens" / "index_cache"
     assert (cache_dir / "manifest.json").is_file()
     assert load_cache(cache_dir) is not None
 
@@ -449,7 +449,7 @@ def test_corrupt_cache_manifest_triggers_full_reindex(tmp_path, monkeypatch):
     (tmp_path / "a.py").write_text("def foo(x):\n    return x\n")
     index_repo(tmp_path)
 
-    manifest_path = tmp_path / ".cartograph" / "index_cache" / "manifest.json"
+    manifest_path = tmp_path / ".codelens" / "index_cache" / "manifest.json"
     manifest_path.write_text("this is not json {{{{{{")
 
     count = _install_parse_spy(monkeypatch)
@@ -457,7 +457,7 @@ def test_corrupt_cache_manifest_triggers_full_reindex(tmp_path, monkeypatch):
 
     assert count() == 1
     assert any(s.qualified_name == "foo" for s in graph.symbols.values())
-    assert load_cache(tmp_path / ".cartograph" / "index_cache") is not None
+    assert load_cache(tmp_path / ".codelens" / "index_cache") is not None
 
 
 # --- type-aware call resolution (Part B) ----------------------------------

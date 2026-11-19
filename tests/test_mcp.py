@@ -28,7 +28,7 @@ TOOLS = {
 
 @asynccontextmanager
 async def connect(repo, *, execution=False, mode="auto"):
-    args = ["-m", "cartograph.mcp_server.server", "--repo", str(repo)]
+    args = ["-m", "codelens.mcp_server.server", "--repo", str(repo)]
     if execution:
         args.append("--allow-execution")
     params = StdioServerParameters(command=sys.executable, args=args)
@@ -85,7 +85,7 @@ async def test_pagination_freshness_and_invalid_arguments(tmp_path):
             ("blast_radius", {"symbol_id": "a.py::same", "max_depth": 0}),
         ]:
             assert (await client.call_tool(tool, args)).is_error
-    assert not (tmp_path / ".cartograph").exists()  # read-only queries do not write caches
+    assert not (tmp_path / ".codelens").exists()  # read-only queries do not write caches
 
 
 @pytest.mark.asyncio
@@ -130,9 +130,9 @@ async def test_impact_name_ambiguity_requires_explicit_selection(tmp_path):
 
 @pytest.mark.asyncio
 async def test_read_review_report_is_read_only_and_flags_staleness(tmp_path):
-    from cartograph.review.changes import git
-    from cartograph.review.engine import source_digest
-    from cartograph.review.models import ReviewReport
+    from codelens.review.changes import git
+    from codelens.review.engine import source_digest
+    from codelens.review.models import ReviewReport
 
     git(tmp_path, "init", "-q")
     target = tmp_path / "app.py"
@@ -140,7 +140,7 @@ async def test_read_review_report_is_read_only_and_flags_staleness(tmp_path):
     async with connect(tmp_path) as client:
         missing = await client.call_tool("read_review_report", {})
         assert missing.is_error and "first run" in missing.content[0].text
-        output = tmp_path / ".cartograph/review"
+        output = tmp_path / ".codelens/review"
         output.mkdir(parents=True)
         report = ReviewReport(
             repo=str(tmp_path.resolve()),
@@ -161,11 +161,11 @@ async def test_read_review_report_is_read_only_and_flags_staleness(tmp_path):
 
 @pytest.mark.asyncio
 async def test_review_patch_returns_repair_feedback_and_enforces_session_budget(tmp_path):
-    from cartograph.review.changes import git
+    from codelens.review.changes import git
 
     repo = tmp_path / "repo"
     (repo / "tests").mkdir(parents=True)
-    (repo / ".gitignore").write_text(".cartograph/\n__pycache__/\n.pytest_cache/\n")
+    (repo / ".gitignore").write_text(".codelens/\n__pycache__/\n.pytest_cache/\n")
     source = repo / "shop.py"
     source.write_text("def total(subtotal, discount=0):\n    return subtotal\n")
     (repo / "tests/test_shop.py").write_text(
@@ -201,7 +201,7 @@ async def test_review_patch_returns_repair_feedback_and_enforces_session_budget(
         assert first["baseline_status"] == "passed"
         assert first["metrics"]["pytest_processes"] == 1
         assert first["metrics"]["test_executions"] == 1
-        assert first["report_html"].endswith(".cartograph\\review\\report.html")
+        assert first["report_html"].endswith(".codelens\\review\\report.html")
         session_id = first["session_id"]
 
         same_source = await call(
@@ -285,7 +285,7 @@ async def test_jsonrpc_20_wire_messages():
     proc = await asyncio.create_subprocess_exec(
         sys.executable,
         "-m",
-        "cartograph.mcp_server.server",
+        "codelens.mcp_server.server",
         "--repo",
         str(FIXTURE),
         stdin=asyncio.subprocess.PIPE,

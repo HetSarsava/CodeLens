@@ -2,7 +2,7 @@
 
 ## Product goal
 
-When an agent changes code, Cartograph should give the agent and developer
+When an agent changes code, CodeLens should give the agent and developer
 evidence about whether the changed behavior is tested, then let the agent make
 limited test repairs before reporting unresolved findings. The developer should
 not have to interpret a raw test failure and manually translate it into the
@@ -10,11 +10,11 @@ next prompt.
 
 ## One bounded workflow
 
-1. The coding agent calls Cartograph's review tool after a code change.
-2. Cartograph maps changed lines to Tree-sitter functions and partial caller
+1. The coding agent calls CodeLens's review tool after a code change.
+2. CodeLens maps changed lines to Tree-sitter functions and partial caller
    paths, runs the requested pytest baseline in a disposable copy, attributes
    changed-line execution to individual tests, then runs bounded mutations.
-3. Cartograph returns a compact structured result and local HTML/JSON report.
+3. CodeLens returns a compact structured result and local HTML/JSON report.
    A red baseline includes failing test names and a bounded log excerpt. A
    surviving mutation or uncovered line includes the function, changed line,
    relevant callers/tests, and a test-focused repair suggestion.
@@ -36,9 +36,9 @@ The loop is advisory and bounded, not a merge-safety verdict.
 
 Each review round records elapsed wall time, pytest process count, test outcomes,
 changed lines/functions, mutation counts by outcome, and repair round number.
-This measures Cartograph's execution overhead and the evidence produced. Model
+This measures CodeLens's execution overhead and the evidence produced. Model
 tokens are host-specific telemetry; report them only when the agent host supplies
-them, otherwise mark them unavailable. Compare baseline and Cartograph workflows
+them, otherwise mark them unavailable. Compare baseline and CodeLens workflows
 on the same task, model, repository revision, and test command before claiming
 that this reduces time, tokens, or failures.
 
@@ -56,7 +56,7 @@ that this reduces time, tokens, or failures.
 
 ## Differentiation to test
 
-Coverage and mutation checking already exist. Cartograph's candidate distinction
+Coverage and mutation checking already exist. CodeLens's candidate distinction
 is the structural evidence trail: changed function, partial caller paths, the
 tests that executed changed lines, and mutation results in one agent-readable
 repair loop. This is a hypothesis, not a uniqueness or efficiency claim. Compare

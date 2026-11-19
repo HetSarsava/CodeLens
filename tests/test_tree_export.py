@@ -8,9 +8,9 @@ recursion is the failure mode most likely to hang or explode on a real repo.
 import json
 from pathlib import Path
 
-from cartograph.graph.indexer import index_repo
-from cartograph.graph.models import Edge, EdgeKind, Symbol, SymbolGraph, SymbolKind
-from cartograph.graph.tree_export import export_tree_html
+from codelens.graph.indexer import index_repo
+from codelens.graph.models import Edge, EdgeKind, Symbol, SymbolGraph, SymbolKind
+from codelens.graph.tree_export import export_tree_html
 
 FIXTURE_REPO = Path(__file__).parent / "fixtures" / "sample_repo"
 
@@ -201,7 +201,7 @@ def test_view_toggle_sets_an_explicit_display_value(tmp_path):
     """
     import re
 
-    from cartograph.graph.tree_export import _HTML_TEMPLATE
+    from codelens.graph.tree_export import _HTML_TEMPLATE
 
     css = _HTML_TEMPLATE.split("<style>")[1].split("</style>")[0]
     js = re.search(r"<script>(.*?)</script>", _HTML_TEMPLATE, re.DOTALL).group(1)

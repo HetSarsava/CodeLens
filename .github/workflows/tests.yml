@@ -22,6 +22,6 @@ jobs:
       - name: Check formatting
         run: uv run --frozen ruff format --check .
       - name: Type check
-        run: uv run --frozen mypy src/cartograph
+        run: uv run --frozen mypy src/codelens
       - name: Tests
         run: uv run --frozen pytest -q

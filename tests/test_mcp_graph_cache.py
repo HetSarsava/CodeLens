@@ -3,7 +3,7 @@
 import os
 from concurrent.futures import ThreadPoolExecutor
 
-from cartograph.mcp_server import graph_cache
+from codelens.mcp_server import graph_cache
 
 
 def test_content_freshness_and_reuse(tmp_path, monkeypatch):
@@ -38,7 +38,7 @@ def test_content_freshness_and_reuse(tmp_path, monkeypatch):
     assert "added.py::extra" in cache.get().symbols
     (tmp_path / "added.py").unlink()
     assert "added.py::extra" not in cache.get().symbols
-    assert not (tmp_path / ".cartograph").exists()
+    assert not (tmp_path / ".codelens").exists()
 
 
 def test_simultaneous_queries_share_one_build(tmp_path, monkeypatch):

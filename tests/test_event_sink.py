@@ -2,8 +2,8 @@
 
 import json
 
-from cartograph.graph.event_sink import JsonlEventSink
-from cartograph.graph.events import IndexEvent, IndexEventKind
+from codelens.graph.event_sink import JsonlEventSink
+from codelens.graph.events import IndexEvent, IndexEventKind
 
 
 def test_sink_writes_one_json_line_per_call(tmp_path):
