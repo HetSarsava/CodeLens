@@ -61,7 +61,18 @@ CODELENS_TEST_DOCKER=1 uv run --frozen pytest -q tests/test_adaptive_mutation.py
 
 The default developer test substitutes only container transport for this authored fixture. Linux CI builds the image and selects Docker. The fixture renders HTML through the production function, exercises two different regressions, adopts the verified tests and runs the resulting suite. Its second run starts with adequate tests and needs only preparation and one batch.
 
-For a separate **live model demonstration**, register the server against a disposable Git project with a profile-rendering entry point, run the one-prompt example from that project, and capture the actual calls and delivered diff:
+For a separate **live model demonstration**, create a disposable project from a POSIX shell:
+
+```sh
+mkdir -p profile-demo/tests && cd profile-demo
+git init
+printf '%s\n' 'from html import escape' '' 'def render_profile(name):' '    return f"<h1>{escape(name)}</h1>"' > views.py
+printf '%s\n' 'from views import render_profile' '' 'def test_name():' '    assert render_profile("Alice") == "<h1>Alice</h1>"' > tests/test_views.py
+printf '%s\n' '__pycache__/' '.pytest_cache/' '.codelens/' > .gitignore
+git add . && git -c user.name=Demo -c user.email=demo@example.invalid commit -m "Seed profile example"
+```
+
+Build the image and register the server as shown above, using this new directory as the target. Start in that directory and capture the actual calls and delivered diff:
 
 ```sh
 codex exec --sandbox workspace-write --json "Update the profile page so display names are trimmed before rendering. If the name is empty after trimming, show 'Guest'. Add tests and use CodeLens mutation testing to check that they catch a realistic regression." > ../profile-agent.jsonl
@@ -70,3 +81,9 @@ git ls-files --others --exclude-standard
 ```
 
 Keep the transcript outside the target tree so it does not invalidate the frozen baseline.
+
+## Observed profile example
+
+In the scripted stdio integration, the untracked baseline module passed for `"Alice"` and `""`. Both the missing trim and the raw-name substitution survived. An added whitespace-only assertion passed on the feature and failed twice on the missing-trim mutant. The same assertion passed on both versions of the raw-name experiment. A second draft with `"  Alice  "` caught that bug. The client saved the two verified drafts, the four rendering tests passed, and a fresh batch killed both mutants. The Linux CI job executed this sequence with Docker.
+
+A separate Windows Codex CLI demonstration reached `prepare_mutation_run` and polled `get_mutation_run`. It received `baseline_failed` because the local Docker runner was unavailable. Its editor and shell also failed to launch, and the final feature diff was empty. The successful sequence above was driven by the deterministic client.

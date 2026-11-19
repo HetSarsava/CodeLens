@@ -6,6 +6,8 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -295,6 +297,53 @@ async def test_failed_candidates_and_recovery(profile):
         (profile / MODULE).write_text("import time\ndef test_slow(): time.sleep(5)\n")
         slow = await prepare(client, "timeout", limits={"test_seconds": 1})
         assert slow.state == "baseline_failed" and slow.baseline.reason == "timeout"
+
+
+def test_cancel_pending_operation_and_reconnect(profile):
+    started = threading.Event()
+
+    class WaitingRunner(FixtureRunner):
+        def run(self, source, scope, image, timeout, cancelled):
+            started.set()
+            assert cancelled.wait(timeout)
+            return Observation(scope=scope, reason="cancelled")
+
+    service = Service(profile, WaitingRunner())
+    request = {"test_paths": ["tests"], "focus": ["views.py"], "requirement": "", "limits": {}}
+    first = service.submit("prepare", "first", request)
+    assert started.wait(6)
+    second_client = Service(profile)
+    replay = second_client.submit("prepare", "first", request)
+    assert replay.operation_id == first.operation_id
+    busy = second_client.submit("prepare", "another", request)
+    assert busy.state == "busy" and busy.operation_id == first.operation_id
+    result = second_client.get(operation_id=first.operation_id, cancel=True)
+    deadline = time.monotonic() + 6
+    while result.state == "pending" and time.monotonic() < deadline:
+        time.sleep(0.05)
+        result = second_client.get(operation_id=first.operation_id)
+    assert result.state == "cancelled"
+
+
+@pytest.mark.skipif(
+    os.environ.get("CODELENS_TEST_DOCKER") != "1", reason="Linux Docker isolation check"
+)
+@pytest.mark.asyncio
+async def test_runner_boundary(profile):
+    (profile / MODULE).write_text(
+        "import os\nfrom pathlib import Path\n\n"
+        "def test_environment():\n"
+        "    assert os.getuid() == 65534\n"
+        "    assert os.getcwd() == '/tmp/work'\n"
+        "    assert set(os.listdir('/sys/class/net')) == {'lo'}\n"
+        "    assert not os.access('/input/views.py', os.W_OK)\n"
+        "    assert not Path('/var/run/docker.sock').exists()\n"
+        "    assert 'PYTHONPATH' not in os.environ\n"
+    )
+    async with connected(profile) as client:
+        result = await prepare(client)
+        assert result.state == "ready", result
+        assert result.baseline.cases[0].node_id == MODULE + "::test_environment"
 
 
 def test_snapshot_tracks_working_bytes_and_deletions(profile, tmp_path):

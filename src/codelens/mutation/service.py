@@ -195,13 +195,17 @@ class Service:
             result.remaining_seconds = round(
                 max(0, row["created"] + result.limits.wall_seconds - time.time()), 2
             )
-        if (
-            check_current
-            and expected
-            and result.state != "pending"
-            and snapshot(self.root) != expected
-        ):
-            result.state, result.reason = "stale", "Workspace changed since the captured baseline"
+        if check_current and expected and result.state != "pending":
+            try:
+                matches = snapshot(self.root) == expected
+            except (ValueError, OSError) as exc:
+                result.state, result.reason = "stale", f"Cannot confirm current workspace: {exc}"
+            else:
+                if not matches:
+                    result.state, result.reason = (
+                        "stale",
+                        "Workspace changed since the captured baseline",
+                    )
         if target:
             result.targets = [
                 t for t in result.targets if target in (t.symbol, t.file, t.target_id)
