@@ -53,7 +53,8 @@ Each observation runs in a fresh copy inside an unprivileged container with a re
 ## Reproduce the evidence
 
 ```sh
-# Real client/server stdio and real pytest on an authored disposable fixture
+uv sync --frozen --extra dev
+# Real client/server stdio and real pytest on a disposable fixture
 uv run --frozen pytest -q tests/test_adaptive_mutation.py
 # Same workflow using the production Docker backend (PowerShell: $env:CODELENS_TEST_DOCKER='1')
 CODELENS_TEST_DOCKER=1 uv run --frozen pytest -q tests/test_adaptive_mutation.py

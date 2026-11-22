@@ -17,7 +17,7 @@ uv sync --frozen
 uv run --frozen codelens review-demo --output logs/review-demo
 ```
 
-Open `logs/review-demo/weak/.codelens/review/report.html` and the matching report under `strong`. The demo compares two real pytest runs on a sample checkout function. The weak tests miss an arithmetic mutation and the strong tests detect it. Pick a new output directory each time.
+Open `logs/review-demo/weak/.codelens/review/report.html` and the matching report under `strong`. The demo runs pytest on two test suites for a sample checkout function. The weak tests miss an arithmetic mutation and the strong tests detect it. Pick a new output directory each time.
 
 For a dependency map, run `uv run --frozen codelens tree tests/fixtures/sample_repo` and open the HTML file it prints.
 
