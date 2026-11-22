@@ -1,296 +1,46 @@
 # CodeLens
 
-CodeLens reviews Python patches by connecting changed functions and caller paths
-to actual pytest execution and bounded mutation checks. Its agent-callable review
-returns focused test-repair findings and permits two re-reviews after edits. It
-asks: **“Your tests passed—but did they distinguish the behavior you changed?”**
-A standalone HTML report shows the evidence and what remains unknown. No API key
-is needed.
+CodeLens helps coding agents review Python changes over MCP. It traces callers, shows which pytest cases executed changed lines, and checks whether those tests catch a plausible regression.
 
-```bash
-uv sync --extra dev
-uv run codelens review-demo --output logs/change-review-demo
-# Or review your own working tree:
-uv run codelens review --repo /path/to/project --base main
+## A bug that passed 38 tests
+
+In a live run against a clone of Python's `humanize` library, Codex added an option to trim fractional zeros. It proposed a regression that only trimmed when the caller supplied a precision. All 38 selected tests still passed, even though `1200.0` formatted as `"1,200.0"` where the feature called for `"1,200"`. CodeLens verified a new assertion on both versions. After Codex added it, the correct version passed all 39 cases and the same mutation failed both reruns. [Experiment and results](docs/adaptive-mutation.md#observed-results)
+
+## Try it locally
+
+Requires Git, Python 3.12 or later, and [uv](https://docs.astral.sh/uv/).
+
+```sh
+git clone https://github.com/HetSarsava/CodeLens.git
+cd CodeLens
+uv sync --frozen
+uv run --frozen codelens review-demo --output logs/review-demo
 ```
 
-The synthetic demo shows a covered discount calculation whose weak test misses a
-mutation, then a stronger test that detects it. Reports live under each demo repo's
-`.codelens/review/`. [Usage, labels, and limitations](docs/change-review.md).
-Mutation testing and affected-test selection have established prior art; this is
-a focused evidence report, not proof that a patch is safe.
+Open `logs/review-demo/weak/.codelens/review/report.html` and the matching report under `strong`. The demo compares two real pytest runs on a sample checkout function. The weak tests miss an arithmetic mutation and the strong tests detect it. Pick a new output directory each time.
 
-The existing code-intelligence MCP server and small LangGraph migration pipeline
-remain available. The pipeline calls deterministic Python tools directly; a
-separate client demo verifies the MCP protocol.
+For a dependency map, run `uv run --frozen codelens tree tests/fixtures/sample_repo` and open the HTML file it prints.
 
-> **Just want to run it?** [RUNME.md](RUNME.md) is the two-minute version.
-> **Learning MCP?** [The practical guide](docs/mcp-guide.md) explains JSON-RPC,
-> client setup and the minimal LangGraph workflow.
+## Connect a coding agent
 
-**Adaptive mutation testing.** Ask your agent to propose a realistic regression and verify that a test catches it. CodeLens returns the exact pytest case, assertion and observed output from isolated runs. [Setup and one-prompt example](docs/adaptive-mutation.md).
+CodeLens runs as a local stdio MCP server, with no API key required by the server. It binds to one Python repository.
 
-## Quickstart
+| Workflow | What CodeLens returns | Guide |
+|---|---|---|
+| Inspect impact | Source locations, direct and transitive callers, and unresolved call counts | [MCP setup and graph tools](docs/mcp-guide.md) |
+| Review a patch | Per-test coverage of changed lines, bounded mutation results, and HTML and JSON reports | [Patch review](docs/change-review.md) |
+| Verify a regression test | A reproduced assertion failure through an agent-proposed mutation in Docker | [Adaptive mutation testing](docs/adaptive-mutation.md) |
 
-Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
+Patch review executes trusted project tests using the local interpreter and disposable source copies. Adaptive mutation testing runs pytest in network-disabled Linux containers and requires Docker. Each finding describes the scope of the executed tests and the exact change it checked. [Architecture](docs/architecture.md)
 
-```bash
-uv sync                                  # install
-uv run codelens tree src/codelens    # no API key needed
-```
+## Development
 
-That writes a standalone HTML map of the codebase you can open by
-double-clicking. For the full migration pipeline, add a Groq key:
-
-```bash
-cp .env.example .env                     # paste your key from console.groq.com/keys
-uv run codelens demo                   # migrate a bundled sample repo, end to end
-```
-
-`codelens demo` works on a throwaway copy, so you can run it as many times
-as you like and always see the same before/after.
-
-## What you can use it for
-
-**1. Understand an unfamiliar Python repo.**
-`codelens tree <repo>` parses every `.py` file with tree-sitter and gives
-you one self-contained HTML page: every file, class, and function, with each
-function's outgoing calls nested underneath it and resolved to their
-definitions. No server, no API key, no account. Useful for onboarding, code
-review prep, or working out what a dependency actually does.
-
-**2. Answer "what breaks if I change this?"**
-The symbol graph backs `find_definition`, `find_callers`, and
-`blast_radius` (a BFS over the reverse call graph). Search for a symbol in
-the web UI's Inspect tab and it shows the answer directly, or call the same
-queries over MCP from any client — Claude Code included — instead of
-grepping and guessing.
-
-Call resolution is deliberately conservative. `x.foo()` on a receiver of
-unknown type is left *unresolved* rather than bound to whichever `foo`
-happens to be unique, because a fabricated edge quietly corrupts the blast
-radius, while a missing one is visible and documented. The UI shows the
-unresolved count and explains each one.
-
-**3. Run a mechanical migration you can actually trust.**
-`codelens run <repo> "<task>"` migrates a codebase with an LLM in the
-loop for judgment only. The rewrites themselves go through libcst against a
-real syntax tree, every change is gated on the test suite, and anything the
-codemod isn't certain about is **quarantined** — left byte-for-byte
-unchanged for a human — rather than guessed at. The bundled example converts
-`unittest` assertions to plain `pytest` asserts.
-
-**4. Give a coding agent better tools.**
-`codelens` is an MCP server first. Run
-`uv run codelens-mcp --repo /path/to/repo --allow-execution` to expose indexing,
-graph queries, codemods, git snapshot/rollback, a structured pytest wrapper, and
-patch review to compatible local stdio MCP clients. There are fourteen
-working tools; query results are paginated and the graph stays on the server.
-`review_patch` runs bounded patch evidence, returns concise findings for the
-coding agent, and allows an initial review plus two changed-source re-reviews
-in one session. `read_review_report` remains a read-only way to inspect a report
-generated by the CLI or review tool.
-
-## The problem
-
-Coding agents typically understand a repo the way a person would with only
-`grep` and `cat`: they read files, guess at what calls what, and either burn
-a huge amount of context re-reading source to stay oriented, or miss a
-caller three files away and break something they never looked at. Neither
-failure mode is really about the model being weak — it's that the model is
-doing structural work (parse this file, find every caller of this function,
-check whether these tests still pass) that a deterministic tool could do
-faster, more cheaply, and without hallucinating.
-
-## The approach
-
-CodeLens pushes the structural understanding and the verification into
-tools, and keeps the LLM's job narrow: make small, bounded decisions given
-context a tool already assembled. A tree-sitter-built symbol graph answers
-"who calls this" and "what breaks if I change it" without a model in the
-loop. `libcst`-based codemods rewrite code through a real syntax tree, and
-report *ambiguity* explicitly instead of guessing. A pytest wrapper returns
-structured pass/fail/error results instead of terminal output an agent has
-to parse. All of it is exposed over MCP, so it's usable by any MCP client —
-not just the LangGraph pipeline in this repo, which exists mainly as a
-worked example: Scout narrows down what's relevant, Planner sequences the
-work, Rewriter executes one step at a time against real test feedback,
-Adjudicator steps in only when a codemod reports genuine ambiguity, and
-Reporter summarizes what happened.
-
-## Directory structure
-
-```
-codelens/
-├── pyproject.toml
-├── README.md
-├── RUNME.md                          # two-minute setup + guided tour
-├── .env.example
-├── src/
-│   └── codelens/
-│       ├── config.py                # environment, provider keys and test limits
-│       ├── providers/               # thin, swappable LLM provider abstraction
-│       │   ├── base.py              # Provider protocol
-│       │   └── groq_provider.py     # Groq implementation
-│       ├── graph/                   # read-only symbol graph
-│       │   ├── indexer.py           # index_repo() — tree-sitter symbol graph builder
-│       │   ├── queries.py           # find_definition, find_callers, blast_radius
-│       │   ├── models.py            # Symbol, Edge, SymbolGraph (Pydantic)
-│       │   ├── events.py            # IndexEvent schema for index_repo's event stream
-│       │   ├── event_sink.py        # JsonlEventSink — writes events as JSONL
-│       │   └── tree_export.py       # export_tree_html() — standalone HTML tree
-│       ├── tools/                   # deterministic tools, exposed via MCP
-│       │   ├── codemod.py           # apply_codemod() driver + Recipe protocol
-│       │   ├── recipes/
-│       │   │   └── unittest_to_pytest.py
-│       │   ├── test_runner.py       # run_tests() — structured pytest wrapper
-│       │   └── snapshot.py          # snapshot() / rollback() via git plumbing
-│       ├── mcp_server/
-│       │   └── server.py            # registers tools/ and graph/queries as MCP tools
-│       ├── agents/                  # LLM-backed agents (Provider in, Pydantic out)
-│       │   ├── scout.py             # narrows candidate symbols to relevant ones
-│       │   ├── planner.py           # turns relevant symbols into an ordered plan
-│       │   ├── rewriter.py          # executes one plan step, retries against tests
-│       │   ├── adjudicator.py       # resolves ambiguities codemods can't
-│       │   └── reporter.py          # summarizes a completed run
-│       ├── pipeline/                # the LangGraph StateGraph
-│       │   ├── state.py             # RunState TypedDict
-│       │   ├── nodes.py             # node functions wrapping agents/tools
-│       │   └── graph.py             # builds and compiles the StateGraph
-│       ├── webui/                  # stdlib-only local UI (`codelens serve`)
-│       │   ├── server.py            # routes and request handling
-│       │   ├── inspect.py           # symbol search, blast radius, insights
-│       │   ├── page.py              # the single HTML page
-│       │   └── jobs.py              # background runs with a pollable live log
-│       └── cli.py                   # demo / run / index / tree / serve / models
-├── viewer/
-│   └── graph_viewer.html            # live viewer for --visualize event streams
-├── tests/
-│   └── fixtures/sample_repo/        # tiny throwaway Python repo used by tool tests
-└── docs/
-    └── architecture.md
-```
-
-## Status
-
-The pipeline runs end to end for real: it indexes a repo, plans a migration,
-applies libcst codemods, verifies with pytest, and reports. Groq handles
-selection, planning and reporting, plus optional ambiguity advice/failure diagnosis.
-Offline tests mock model responses; the live-provider test requires a Groq key.
-
-**Implemented (real logic, covered by passing tests):**
-
-- `graph/models.py` — `Symbol`, `Edge`, `SymbolGraph` (Pydantic v2)
-- `graph/indexer.py` — `index_repo()`: tree-sitter-based extraction of
-  function/class definitions and call edges, with an optional event stream
-  (`on_event`) for watching an index run happen
-- `graph/queries.py` — `find_definition()`, `find_callers()`,
-  `blast_radius()` (BFS over the reverse call graph)
-- `graph/tree_export.py` — `export_tree_html()`: renders a graph as one
-  self-contained HTML file (cycle-, depth-, and size-bounded)
-- `tools/snapshot.py` — `snapshot()` / `rollback()` via git plumbing
-  (commit-tree/read-tree against a throwaway index; never touches HEAD)
-- `tools/test_runner.py` — `run_tests()`: shells out to
-  `pytest --json-report` and returns structured `TestRunResult`
-- `tools/codemod.py` + `tools/recipes/unittest_to_pytest.py` — libcst
-  rewriting of unittest assertions to plain `assert`, reporting *ambiguity*
-  rather than guessing. Targets resolving outside the repo root are refused.
-- `agents/` — Scout, Planner, Rewriter, Adjudicator, Reporter, all calling
-  Groq through `Provider` and validating responses into Pydantic models
-- `review/` — patch mapping, per-test coverage, isolated mutation checks, and HTML evidence
-- `mcp_server/server.py` — ten working tools registered via the official
-  MCP SDK; actual subprocess and raw JSON-RPC interoperability tests
-- `pipeline/` — four sequential stages: inspect, plan, execute, report.
-  Five roles remain; execution uses an ordinary Python loop with one attempt
-  per step and advisory ambiguity review. No checkpoint or graph retry cycle.
-- `webui/` — a stdlib-only local UI: index a repo from the browser and
-  watch a migration run live (`codelens serve`)
-
-## Setup notes
-
-Only `run` and `demo` need `GROQ_API_KEY`; `index`, `tree`, and `serve` work
-without one. If a run fails with a 404 on the model id, the provider has
-retired it — `uv run codelens models` lists what your key can currently
-use, and you set the winner as `GROQ_MODEL` in `.env`.
-
-## Common tasks
-
-A `Makefile` covers the day-to-day commands; on Windows without `make`,
-`make.ps1` mirrors every target for PowerShell (`.\make.ps1 <target>`).
-
-```bash
-make setup       # uv sync
-make test        # full pytest suite, verbose
-make check       # lint + typecheck + test
-make demo        # full pipeline on a throwaway copy of the sample repo
-make run         # codelens run against the sample fixture
-make serve       # local web UI at http://127.0.0.1:8765
-make tree        # standalone HTML dependency tree for the fixture repo
-make mcp         # start the MCP server (stdio transport)
-make help        # full list
-```
-
-## Commands
-
-```bash
-codelens demo                    # the whole pipeline on a bundled sample repo
-codelens run <repo> "<task>"     # the full migration pipeline
-codelens index <repo>            # index only, print summary counts
-codelens index <repo> --visualize  # + live JSONL event stream to ./logs
-codelens tree <repo>             # one self-contained HTML dependency tree
-codelens serve                   # local web UI for the above
-codelens models                  # list Groq model ids your key can use
-```
-
-`codelens tree` is the quickest way to see what the indexer found: it
-writes a single HTML file you can open by double-clicking, with no server
-running. `--visualize` is the live counterpart — it streams events to
-`./logs/graph-events-*.jsonl` as indexing happens, for
-`viewer/graph_viewer.html` to poll and animate.
-
-### The web UI
-
-`codelens serve` is the easiest way in — one page, two tabs:
-
-- **Explore** — type a path or click an example, and the dependency map
-  renders *inline* (full-screen toggle, or pop it into its own tab). Every
-  map you build stays listed under "Previously built" so you can flip
-  between them.
-- **Inspect** — search the indexed repo (fuzzy: `fcl` finds `find_callers`),
-  then click a symbol for where it's defined, what it calls, who calls it,
-  its **blast radius**, and a one-hop call graph you can drag around and
-  double-click to walk. Unresolved calls say *why*: `ambiguous` (two symbols
-  share the name, so the indexer refused to guess — it names both),
-  `unknown receiver`, or `external`.
-- **Insights** — computed from the graph with no model call: most
-  referenced symbols, never-referenced ones, longest definitions, busiest
-  files, and the most-called external names. Every entry is clickable
-  through to the inspector.
-
-Keyboard: <kbd>/</kbd> jumps to the path box, <kbd>s</kbd> to symbol search,
-<kbd>Enter</kbd> builds, <kbd>Esc</kbd> closes the viewer.
-- **Migrate** — runs the sample migration end to end with the pipeline's own
-  log streaming live, then shows the unified diff, a committed/quarantined
-  verdict, and the agent's report. It works on a throwaway copy, so it never
-  touches your files; the header shows whether your API key is set, and the
-  tab explains what to do if it isn't.
-
-It binds to `127.0.0.1` only. It runs the indexer against whatever local
-path you hand it, so it is not safe to expose on a network. It deliberately
-won't rewrite an arbitrary directory — that stays a `codelens run` decision
-you make in a terminal.
-
-## Reproducible MCP verification and context measurement
-
-```bash
+```sh
 uv sync --frozen --extra dev
-uv run python examples/mcp_client.py tests/fixtures/sample_repo --name add
-uv run pytest -q
-uv run python scripts/benchmark_context.py --repo src/codelens
+uv run --frozen ruff check .
+uv run --frozen ruff format --check .
+uv run --frozen mypy src/codelens
+uv run --frozen pytest -q
 ```
 
-The benchmark measures UTF-8 source bytes versus complete impact-query request
-and SDK-result bytes. It includes pagination and both result representations,
-but excludes discovery, tool schemas and initial symbol lookup. Results vary
-by query; they are not a universal 100x token-saving claim.
-See [architecture and limitations](docs/architecture.md).
+Windows and Linux CI exercise the real MCP subprocess. The Linux job also builds the test image and checks the Docker execution boundary.

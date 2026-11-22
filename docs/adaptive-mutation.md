@@ -4,19 +4,19 @@ Ask your coding agent once:
 
 > Update the profile page so display names are trimmed before rendering. If the name is empty after trimming, show “Guest”. Add tests and use CodeLens mutation testing to check that they catch a realistic regression.
 
-The agent writes the feature and proposes specific mistakes. CodeLens freezes the working tree, runs pytest, and returns the observations. The agent decides whether another experiment would add evidence. Ordinary MCP stdio tools handle the entire exchange. No model credentials, sampling support or conversion of unittest tests are required by the server.
+The agent writes the feature and proposes specific mistakes. CodeLens freezes the working tree, runs pytest, and returns the observations. The agent decides whether another experiment would add evidence. The MCP server uses local stdio and needs no model credentials.
 
 ## Set up a client
 
 From the CodeLens checkout, install the server and build its Linux test image:
 
 ```sh
-uv sync --frozen --extra dev
+uv sync --frozen
 docker build -t codelens-mutation:local -f docker/mutation.Dockerfile docker
 codex mcp add codelens -- uv --directory /absolute/path/to/CodeLens run --frozen codelens-mcp --repo /absolute/path/to/project --allow-execution
 ```
 
-Start a new Codex session in the **target project**. Other clients can launch the same command after the first `--` as a stdio MCP server. Configure one trusted Git working tree with at least one commit per server. The execution flag also enables the existing trusted-workspace tools. The four adaptive tools use Docker for all project and draft test execution.
+Start a new Codex session in the **target project**. Other clients can launch the same command after the first `--` as a stdio MCP server. Configure one trusted Git working tree with at least one commit per server. The execution flag also enables host-based patch review for trusted projects. The four adaptive tools use Docker for all project and draft test execution.
 
 The base image supplies CPython 3.12 and pytest. For projects with dependencies, derive a trusted image from `codelens-mutation:local`, install the pinned test requirements at image build time, and set `CODELENS_MUTATION_IMAGE` in the **server's** environment. Keep the checkout out of the image and avoid editable installs referring to host paths. CodeLens pins each run to the resolved image ID. Use a local Linux-container engine with bind mounting enabled. Tests that require network access, services, or writable host data need a different test scope.
 
@@ -82,8 +82,21 @@ git ls-files --others --exclude-standard
 
 Keep the transcript outside the target tree so it does not invalidate the frozen baseline.
 
-## Observed profile example
+## Observed results
+
+### Reproducible profile fixture
 
 In the scripted stdio integration, the untracked baseline module passed for `"Alice"` and `""`. Both the missing trim and the raw-name substitution survived. An added whitespace-only assertion passed on the feature and failed twice on the missing-trim mutant. The same assertion passed on both versions of the raw-name experiment. A second draft with `"  Alice  "` caught that bug. The client saved the two verified drafts, the four rendering tests passed, and a fresh batch killed both mutants. The Linux CI job executed this sequence with Docker.
 
-A separate Windows Codex CLI demonstration reached `prepare_mutation_run` and polled `get_mutation_run`. It received `baseline_failed` because the local Docker runner was unavailable. Its editor and shell also failed to launch, and the final feature diff was empty. The successful sequence above was driven by the deterministic client.
+### Live Codex run on humanize
+
+In a disposable clone of [python-humanize/humanize](https://github.com/python-humanize/humanize/tree/a95004512dde4e8f0269946bb4af754382347441), Codex added an opt-in feature to trim trailing zeros from formatted numbers. It proposed the following regression:
+
+```diff
+-    if strip_trailing_zeros:
++    if strip_trailing_zeros and ndigits is not None:
+```
+
+All 38 selected tests passed with the mutant. A focused assertion for `intcomma(1200.0, strip_trailing_zeros=True)` expected `"1,200"`. It passed on the feature and failed twice on the mutant, which returned `"1,200.0"`. After Codex saved that test, the clean baseline passed all 39 cases and the same mutation failed both confirmation runs.
+
+The live run used the CodeLens stdio server and a separate WSL bubblewrap runner on Windows. The standard Docker runner is exercised in Linux CI. This result measures one concrete regression on the selected scope.

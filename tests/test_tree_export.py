@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 
 from codelens.graph.indexer import index_repo
-from codelens.graph.models import Edge, EdgeKind, Symbol, SymbolGraph, SymbolKind
+from codelens.graph.models import Edge, Symbol, SymbolGraph, SymbolKind
 from codelens.graph.tree_export import export_tree_html
 
 FIXTURE_REPO = Path(__file__).parent / "fixtures" / "sample_repo"
@@ -66,8 +66,8 @@ def test_cycle_does_not_hang_and_is_marked(tmp_path):
         root_path="/tmp/cyclic",
         symbols={a.id: a, b.id: b},
         edges=[
-            Edge(source_id=a.id, target_id=b.id, target_name="b", kind=EdgeKind.CALLS, line=1),
-            Edge(source_id=b.id, target_id=a.id, target_name="a", kind=EdgeKind.CALLS, line=2),
+            Edge(source_id=a.id, target_id=b.id, target_name="b", line=1),
+            Edge(source_id=b.id, target_id=a.id, target_name="a", line=2),
         ],
         files_indexed=["cyclic.py"],
         files_skipped=[],
@@ -88,7 +88,7 @@ def test_self_recursive_symbol_terminates(tmp_path):
     graph = SymbolGraph(
         root_path="/tmp/cyclic",
         symbols={a.id: a},
-        edges=[Edge(source_id=a.id, target_id=a.id, target_name="a", kind=EdgeKind.CALLS, line=1)],
+        edges=[Edge(source_id=a.id, target_id=a.id, target_name="a", line=1)],
         files_indexed=["cyclic.py"],
         files_skipped=[],
     )
@@ -108,7 +108,6 @@ def test_unresolved_edge_is_rendered_not_dropped(tmp_path):
                 source_id=a.id,
                 target_id=None,
                 target_name="some_external_thing",
-                kind=EdgeKind.CALLS,
                 line=1,
             )
         ],

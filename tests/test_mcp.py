@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import shutil
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -17,10 +16,6 @@ TOOLS = {
     "find_definition",
     "find_callers",
     "blast_radius",
-    "run_tests",
-    "snapshot",
-    "rollback",
-    "apply_codemod",
     "read_review_report",
     "review_patch",
     "prepare_mutation_run",
@@ -61,9 +56,6 @@ async def test_stdio_discovery_and_queries(mode):
         assert any(symbol["name"] == "double" for symbol in callers["symbols"])
         impact = await call(client, "blast_radius", {"symbol_id": symbol_id})
         assert impact["total"] >= callers["total"]
-        result = await client.call_tool("snapshot", {})
-        assert result.is_error
-        assert "--allow-execution" in result.content[0].text
         result = await client.call_tool("review_patch", {"base_ref": "HEAD"})
         assert result.is_error and "--allow-execution" in result.content[0].text
 
@@ -256,34 +248,6 @@ async def test_review_patch_returns_repair_feedback_and_enforces_session_budget(
         assert exhausted["state"] == "repair_limit_reached"
         assert exhausted["metrics"]["round_number"] == 2
         assert exhausted["metrics"]["repair_rounds_remaining"] == 0
-
-
-@pytest.mark.asyncio
-async def test_all_mutating_tools_through_stdio(tmp_path):
-    repo = tmp_path / "repo"
-    shutil.copytree(FIXTURE, repo)
-    target = repo / "tests" / "test_legacy_unittest.py"
-    before = target.read_bytes()
-    async with connect(repo, execution=True) as client:
-        saved = await call(client, "snapshot", {"label": "protocol test"})
-        edit = await call(
-            client,
-            "apply_codemod",
-            {
-                "recipe_name": "unittest_to_pytest",
-                "target_files": ["tests/test_legacy_unittest.py"],
-            },
-        )
-        assert edit["applied"] and target.read_bytes() != before
-        tests = await call(client, "run_tests")
-        assert tests["passed"] > 0 and tests["return_code"] == 0
-        await call(client, "rollback", {"snapshot_id": saved["snapshot_id"]})
-        assert target.read_bytes() == before
-        outside = tmp_path / "outside.py"
-        outside.write_text("def test_outside():\n    assert False\n")
-        result = await client.call_tool("run_tests", {"test_path": str(outside)})
-        assert result.is_error
-        assert (await client.call_tool("rollback", {"snapshot_id": "--help"})).is_error
 
 
 @pytest.mark.asyncio

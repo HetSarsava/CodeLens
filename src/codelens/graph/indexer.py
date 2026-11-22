@@ -1,41 +1,15 @@
-"""Builds a `SymbolGraph` for a Python repo using tree-sitter.
-
-This is intentionally simple: each `.py` file is parsed independently,
-symbols are collected first, and call edges are resolved in a second pass
-against a global name index. Unchanged files skip re-parsing between runs
-via a content-hash cache under `.codelens/index_cache/` (see `cache.py`);
-only pass-1 output (symbols + pending calls) is cached — edge resolution
-always re-runs in full against the complete symbol set.
-Resolution is best-effort — see `_resolve_call_target` for the exact rules —
-and unresolved edges are kept (with `target_id=None`) rather than dropped, so
-downstream consumers can see what *couldn't* be figured out.
-"""
+"""Extract Python symbols and resolve calls in two passes using Tree-sitter."""
 
 from __future__ import annotations
 
-import itertools
-import logging
-import time
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import tree_sitter_python as tspython
 from tree_sitter import Language, Node, Parser
 
-from codelens.graph.cache import (
-    _CACHE_VERSION,
-    CachedFileEntry,
-    CachedPendingCall,
-    CacheManifest,
-    hash_file_content,
-    load_cache,
-    save_cache,
-)
-from codelens.graph.events import IndexEvent, IndexEventKind
-from codelens.graph.models import Edge, EdgeKind, Symbol, SymbolGraph, SymbolKind
-
-logger = logging.getLogger(__name__)
+from codelens.graph.models import Edge, Symbol, SymbolGraph, SymbolKind
 
 _PY_LANGUAGE = Language(tspython.language())
 
@@ -95,250 +69,47 @@ class _IndexAccumulator:
     """
 
 
-def index_repo(
-    repo_path: str | Path,
-    on_event: Callable[[IndexEvent], None] | None = None,
-    *,
-    use_cache: bool = True,
-) -> SymbolGraph:
-    """Walk `repo_path` and build a `SymbolGraph`, reusing cached results for
-    unchanged `.py` files when possible.
-
-    For each file: extract top-level and nested function/class definitions as
-    `Symbol`s, and every call expression inside a function/method body as a
-    candidate `Edge`. Call targets are resolved by name against the full set
-    of symbols found across the repo (see `_resolve_call_target`); this is a
-    best-effort static resolution, not a real Python name-resolution engine,
-    so it can both miss valid edges (e.g. calls through aliased imports) and
-    over-resolve (e.g. two unrelated functions sharing a name are ambiguous
-    and left unresolved).
-
-    Between runs, pass-1 output (symbols and raw pending calls) is cached
-    under `{repo_path}/.codelens/index_cache/`, keyed per file by a SHA-256
-    hash of its raw bytes; a file whose hash matches the cache is not
-    re-parsed. Pass 2 (edge resolution) always re-runs in full against the
-    current symbol set — cached resolved edges are never reused. If the cache
-    directory cannot be created (e.g. a read-only repo), indexing proceeds
-    exactly as before with caching disabled and a warning logged.
-
-    Args:
-        repo_path: Path to the root of the repo (or subtree) to index.
-        on_event: Optional callback invoked with an `IndexEvent` at each
-            notable point during indexing (file/symbol/edge discovery), for
-            progress visualization or debugging. Purely an observability
-            hook — indexing behavior and the returned `SymbolGraph` are
-            identical whether or not this is passed.
-        use_cache: Keyword-only. When False, bypasses the on-disk cache
-            entirely (no read, no write) and re-parses every file, matching
-            the pre-cache behavior exactly.
-
-    Returns:
-        A `SymbolGraph` with all symbols and resolved/unresolved edges.
-    """
+def index_repo(repo_path: str | Path) -> SymbolGraph:
+    """Extract symbols and resolve each call against the full repository."""
     root = Path(repo_path).resolve()
     acc = _IndexAccumulator()
-    seq = itertools.count()
-
-    cache_dir = root / ".codelens" / "index_cache"
-    cache_enabled = False
-    manifest = None
-    if use_cache:
-        try:
-            cache_dir.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            # Soft-fail: an unwritable cache dir must never break indexing.
-            logger.warning(
-                "[indexer] caching disabled: cannot create cache dir %s (%s)",
-                cache_dir,
-                exc,
-            )
-        else:
-            cache_enabled = True
-            manifest = load_cache(cache_dir)
-
-    all_files = sorted(_iter_python_files(root))
-    files_total = len(all_files)
-
-    # Per-file entries for the manifest written at the end of this run:
-    # cache-hit files carry their loaded entry over, freshly parsed files
-    # get a new one, and files deleted since the last run simply drop out.
-    fresh_entries: dict[str, CachedFileEntry] = {}
-
-    for files_done, file_path in enumerate(all_files):
-        rel_path = file_path.relative_to(root).as_posix()
-        if on_event:
-            on_event(
-                IndexEvent(
-                    kind=IndexEventKind.FILE_STARTED,
-                    seq=next(seq),
-                    timestamp=time.time(),
-                    file_path=rel_path,
-                    files_total=files_total,
-                    files_done=files_done,
-                )
-            )
-
+    parser = Parser(_PY_LANGUAGE)
+    for file_path in sorted(_iter_python_files(root)):
+        rel_path = file_path.name if root.is_file() else file_path.relative_to(root).as_posix()
         source = file_path.read_bytes()
-        content_hash = hash_file_content(source)
-        cached_entry = manifest.files.get(rel_path) if manifest is not None else None
+        tree = parser.parse(source)
+        if tree.root_node.has_error:
+            acc.files_skipped.append(rel_path)
+            continue
+        _walk_module(tree.root_node, source, rel_path, acc)
+        acc.files_indexed.append(rel_path)
 
-        if cached_entry is not None and cached_entry.content_hash == content_hash:
-            # Cache hit: the content hash matches, so the symbols and pending
-            # calls from the previous run are still exactly right. Reuse them
-            # without touching tree-sitter; edges are still re-resolved in
-            # pass 2 below against the full current symbol set.
-            for symbol in cached_entry.symbols:
-                acc.symbols[symbol.id] = symbol
-            for cached_call in cached_entry.pending_calls:
-                acc.pending_calls.append(
-                    _PendingCall(
-                        source_id=cached_call.source_id,
-                        target_expr=cached_call.target_expr,
-                        line=cached_call.line,
-                        self_class_id=cached_call.self_class_id,
-                    )
-                )
-            acc.files_indexed.append(rel_path)
-            fresh_entries[rel_path] = cached_entry
-            if on_event:
-                on_event(
-                    IndexEvent(
-                        kind=IndexEventKind.FILE_CACHE_HIT,
-                        seq=next(seq),
-                        timestamp=time.time(),
-                        file_path=rel_path,
-                        files_total=files_total,
-                        files_done=files_done,
-                    )
-                )
-                for symbol in cached_entry.symbols:
-                    on_event(
-                        IndexEvent(
-                            kind=IndexEventKind.SYMBOL_DISCOVERED,
-                            seq=next(seq),
-                            timestamp=time.time(),
-                            symbol=symbol,
-                            file_path=rel_path,
-                        )
-                    )
-        else:
-            if on_event:
-                on_event(
-                    IndexEvent(
-                        kind=IndexEventKind.FILE_CACHE_MISS,
-                        seq=next(seq),
-                        timestamp=time.time(),
-                        file_path=rel_path,
-                        files_total=files_total,
-                        files_done=files_done,
-                    )
-                )
-            parser = Parser(_PY_LANGUAGE)
-            tree = parser.parse(source)
-            if tree.root_node.has_error:
-                # Best-effort: a syntax error shouldn't take down the whole
-                # index. Skipped files are deliberately not cached: the
-                # manifest schema has no flag to record "this file failed to
-                # parse", so a cached skipped file would be indistinguishable
-                # from a valid empty module when deciding files_indexed vs
-                # files_skipped on a later run.
-                acc.files_skipped.append(rel_path)
-            else:
-                pending_start = len(acc.pending_calls)
-                _walk_module(tree.root_node, source, rel_path, acc, on_event, seq)
-                acc.files_indexed.append(rel_path)
-                fresh_entries[rel_path] = CachedFileEntry(
-                    content_hash=content_hash,
-                    symbols=[s for s in acc.symbols.values() if s.file_path == rel_path],
-                    pending_calls=[
-                        CachedPendingCall(
-                            source_id=pc.source_id,
-                            target_expr=pc.target_expr,
-                            line=pc.line,
-                            self_class_id=pc.self_class_id,
-                        )
-                        for pc in acc.pending_calls[pending_start:]
-                    ],
-                )
-
-        if on_event:
-            on_event(
-                IndexEvent(
-                    kind=IndexEventKind.FILE_FINISHED,
-                    seq=next(seq),
-                    timestamp=time.time(),
-                    file_path=rel_path,
-                )
-            )
-
-    if on_event:
-        on_event(
-            IndexEvent(
-                kind=IndexEventKind.EDGE_RESOLUTION_STARTED,
-                seq=next(seq),
-                timestamp=time.time(),
-                # files_total always means "files found", never "files
-                # successfully parsed" — a consumer rendering progress must
-                # not see the denominator shrink because a file was skipped.
-                files_total=files_total,
-                files_done=len(acc.files_indexed),
-            )
-        )
-
-    # Pass 1.5: infer `self.<attr>` types from each class's `__init__` and
-    # attach them to the pending calls, before edge resolution consumes them.
     _populate_attr_types(acc)
-
     by_bare_name = _build_bare_name_index(acc.symbols)
-    edges: list[Edge] = []
-    for call in acc.pending_calls:
-        edge = _resolve_call_target(call, acc.symbols, by_bare_name)
-        edges.append(edge)
-        if on_event:
-            on_event(
-                IndexEvent(
-                    kind=IndexEventKind.EDGE_DISCOVERED,
-                    seq=next(seq),
-                    timestamp=time.time(),
-                    edge=edge,
-                )
-            )
-
-    files_done_total = len(acc.files_indexed) + len(acc.files_skipped)
-    if on_event:
-        on_event(
-            IndexEvent(
-                kind=IndexEventKind.INDEX_FINISHED,
-                seq=next(seq),
-                timestamp=time.time(),
-                files_total=files_total,
-                files_done=files_done_total,
-            )
-        )
-
-    if cache_enabled:
-        save_cache(cache_dir, CacheManifest(cache_version=_CACHE_VERSION, files=fresh_entries))
-
     return SymbolGraph(
         root_path=str(root),
         symbols=acc.symbols,
-        edges=edges,
+        edges=[_resolve_call_target(call, acc.symbols, by_bare_name) for call in acc.pending_calls],
         files_indexed=acc.files_indexed,
         files_skipped=acc.files_skipped,
     )
 
 
-def _iter_python_files(root: Path):
+def _iter_python_files(root: Path) -> Iterator[Path]:
     if root.is_file():
         if root.suffix == ".py":
             yield root
         return
-    for path in root.rglob("*.py"):
-        if not path.resolve().is_relative_to(root.resolve()):
-            continue
-        if any(part in _SKIP_DIR_NAMES for part in path.relative_to(root).parts[:-1]):
-            continue
-        yield path
+    for directory, subdirectories, filenames in root.walk():
+        subdirectories[:] = [
+            name
+            for name in subdirectories
+            if name not in _SKIP_DIR_NAMES and not (directory / name).is_junction()
+        ]
+        for name in filenames:
+            path = directory / name
+            if path.suffix == ".py" and path.is_file() and path.resolve().is_relative_to(root):
+                yield path
 
 
 def _walk_module(
@@ -346,8 +117,6 @@ def _walk_module(
     source: bytes,
     rel_path: str,
     acc: _IndexAccumulator,
-    on_event: Callable[[IndexEvent], None] | None,
-    seq: Iterator[int],
 ) -> None:
     """Recursively visit a module's AST, recording symbols and pending calls.
 
@@ -363,18 +132,6 @@ def _walk_module(
       executable scope. Set when descending into a *method's* body (and
       only then), used purely to resolve `self.foo(...)` call sites.
     """
-
-    def _emit_symbol_discovered(symbol: Symbol) -> None:
-        if on_event:
-            on_event(
-                IndexEvent(
-                    kind=IndexEventKind.SYMBOL_DISCOVERED,
-                    seq=next(seq),
-                    timestamp=time.time(),
-                    symbol=symbol,
-                    file_path=rel_path,
-                )
-            )
 
     def visit(
         node: Node,
@@ -419,7 +176,6 @@ def _walk_module(
             parent_id=class_scope_id if is_method else None,
         )
         acc.symbols[symbol_id] = symbol
-        _emit_symbol_discovered(symbol)
         if body is not None:
             visit(
                 body,
@@ -454,10 +210,7 @@ def _walk_module(
             parent_id=None,
         )
         acc.symbols[symbol_id] = symbol
-        _emit_symbol_discovered(symbol)
-        # Retain the class's `__init__` node for the between-pass attribute
-        # type scan; re-locating it later would mean searching a tree we no
-        # longer hold (and, on a cache-hit run, never parsed at all).
+        # Resolve constructor names after all classes have been collected.
         init_node = _find_init_method(node, source)
         if init_node is not None:
             acc.init_nodes[symbol_id] = (init_node, source)
@@ -659,14 +412,7 @@ def _infer_rhs_type(right: Node, source: bytes, known_classes: dict[str, str]) -
 
 
 def _populate_attr_types(acc: _IndexAccumulator) -> None:
-    """Run the between-pass attribute-type scan and attach results to calls.
-
-    Runs after every file has been walked (so `known_classes` covers the
-    whole repo) and before pass 2. `attr_types` is deliberately not cached:
-    like every other pass-2 input it is recomputed fresh on every
-    `index_repo` call, from the `__init__` nodes of the files parsed this
-    run.
-    """
+    """Infer receiver types after collecting all classes, then attach them to calls."""
     known_classes = _build_known_classes(acc.symbols)
     for class_id, (init_node, source) in acc.init_nodes.items():
         scanned = _scan_init_attr_types(init_node, class_id, source, known_classes)
@@ -728,7 +474,6 @@ def _resolve_call_target(
                     source_id=call.source_id,
                     target_id=symbol_id,
                     target_name=call.target_expr,
-                    kind=EdgeKind.CALLS,
                     line=call.line,
                 )
 
@@ -752,7 +497,6 @@ def _resolve_call_target(
                 source_id=call.source_id,
                 target_id=None,
                 target_name=call.target_expr,
-                kind=EdgeKind.CALLS,
                 line=call.line,
             )
         if inferred_type is not None:
@@ -764,7 +508,6 @@ def _resolve_call_target(
                         source_id=call.source_id,
                         target_id=symbol_id,
                         target_name=call.target_expr,
-                        kind=EdgeKind.CALLS,
                         line=call.line,
                     )
             # Method not found on the inferred class (e.g. inherited — out of
@@ -778,6 +521,5 @@ def _resolve_call_target(
         source_id=call.source_id,
         target_id=target_id,
         target_name=call.target_expr,
-        kind=EdgeKind.CALLS,
         line=call.line,
     )

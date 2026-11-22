@@ -133,7 +133,7 @@ def review(
         warnings.extend(copy_snapshot(root, frozen, files))
         if source_digest(root) != before or source_digest(frozen, files) != before:
             raise ValueError("Source changed during snapshot; retry when editing has stopped")
-        graph = index_repo(frozen, use_cache=False)
+        graph = index_repo(frozen)
         report.functions, mapping_warnings = changed_functions(graph, changed)
         warnings.extend(mapping_warnings)
         if not report.functions:

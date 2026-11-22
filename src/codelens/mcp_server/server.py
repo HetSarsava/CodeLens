@@ -8,7 +8,6 @@ discovery, schemas, dispatch and errors.
 from __future__ import annotations
 
 import argparse
-import re
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -23,16 +22,9 @@ from codelens.graph.queries import blast_radius as query_impact
 from codelens.graph.queries import find_callers as query_callers
 from codelens.graph.queries import find_definition as query_definition
 from codelens.mcp_server.graph_cache import RepositoryGraph
+from codelens.mutation.adapter import register
 from codelens.review.feedback import ReviewFeedback, feedback_for
 from codelens.review.models import ReviewReport
-from codelens.tools import recipes as _recipes  # noqa: F401
-from codelens.tools.codemod import CodemodResult
-from codelens.tools.codemod import apply_codemod as codemod
-from codelens.tools.snapshot import RollbackResult, SnapshotResult
-from codelens.tools.snapshot import rollback as restore
-from codelens.tools.snapshot import snapshot as capture
-from codelens.tools.test_runner import TestRunResult
-from codelens.tools.test_runner import run_tests as pytest_run
 
 Limit = Annotated[int, Field(ge=1, le=100)]
 Offset = Annotated[int, Field(ge=0)]
@@ -155,7 +147,6 @@ def create_server(repo_path: str | Path, *, allow_execution: bool = False) -> MC
             "Propose requirement-specific regressions via run_mutation_batch. Poll pending IDs "
             "with get_mutation_run. For meaningful survivors use verify_regression_test; adopt "
             "only verified drafts, rerun the normal suite, and report unresolved behavior. "
-            "Take a snapshot before applying a codemod."
         ),
     )
     read = ToolAnnotations(read_only_hint=True, destructive_hint=False, open_world_hint=False)
@@ -399,42 +390,6 @@ def create_server(repo_path: str | Path, *, allow_execution: bool = False) -> MC
             unresolved_edges=sum(e.target_id is None for e in graph.edges),
         )
 
-    @server.tool(annotations=write)
-    def run_tests(
-        test_path: str = ".",
-        timeout_seconds: Annotated[int, Field(ge=1, le=600)] = 120,
-    ) -> TestRunResult:
-        """Execute trusted repository pytest code; requires --allow-execution."""
-        require_execution()
-        path, *node = test_path.split("::", 1)
-        target = (root / path).resolve(strict=True)
-        if not path or not target.is_relative_to(root):
-            raise ValueError("Test path must stay inside the configured repository")
-        normalized = str(target) + ("::" + node[0] if node else "")
-        return pytest_run(root, normalized, timeout_seconds)
-
-    @server.tool(annotations=write)
-    def snapshot(label: str | None = None) -> SnapshotResult:
-        """Capture tracked and non-ignored files without moving HEAD; execution mode only."""
-        require_execution()
-        return capture(root, label)
-
-    @server.tool(annotations=write)
-    def rollback(snapshot_id: str) -> RollbackResult:
-        """Restore a snapshot, removing newer non-ignored files and updating the Git index."""
-        require_execution()
-        if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", snapshot_id):
-            raise ValueError("snapshot_id must be a full Git object SHA from snapshot")
-        return restore(root, snapshot_id)
-
-    @server.tool(annotations=write)
-    def apply_codemod(recipe_name: str, target_files: list[str] | None = None) -> CodemodResult:
-        """Apply a deterministic recipe; ambiguous files remain unchanged. Snapshot first."""
-        require_execution()
-        return codemod(root, recipe_name, target_files)
-
-    from codelens.mutation.adapter import register
-
     register(server, root, require_execution)
     return server
 
@@ -447,7 +402,7 @@ def main() -> None:
     parser.add_argument(
         "--allow-execution",
         action="store_true",
-        help="Allow pytest execution, codemods, snapshots and rollback in the trusted repository",
+        help="Allow patch review and isolated mutation testing for the trusted repository",
     )
     args = parser.parse_args()
     create_server(args.repo, allow_execution=args.allow_execution).run(transport="stdio")

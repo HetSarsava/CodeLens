@@ -42,7 +42,7 @@ class RepositoryGraph:
                     before = _fingerprint(self.root)
                     if self._graph is not None and before == self._digest:
                         return self._graph
-                    graph = index_repo(self.root, use_cache=False)
+                    graph = index_repo(self.root)
                     if before == _fingerprint(self.root):
                         self._graph, self._digest = graph, before
                         return graph

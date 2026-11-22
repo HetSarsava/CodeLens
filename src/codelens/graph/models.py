@@ -19,17 +19,10 @@ class SymbolKind(str, Enum):
     FUNCTION = "function"
     METHOD = "method"
     CLASS = "class"
-    MODULE = "module"
-
-
-class EdgeKind(str, Enum):
-    """The kind of relationship an `Edge` represents between two symbols."""
-
-    CALLS = "calls"
 
 
 class Symbol(BaseModel):
-    """A single definition (function, method, class, or module) in the repo.
+    """A single definition (function, method, or class) in the repo.
 
     `id` is a stable, globally unique identifier of the form
     ``"{relative_file_path}::{qualified_name}"`` so it can be used as a dict
@@ -56,7 +49,7 @@ class Symbol(BaseModel):
 
 
 class Edge(BaseModel):
-    """A directed relationship between two symbols (currently: call edges).
+    """A Python call site and its statically resolved target, when known.
 
     `target_id` may be `None` when the call target could not be resolved to a
     known symbol (e.g. it's an attribute call on an external object, or a
@@ -73,7 +66,6 @@ class Edge(BaseModel):
         default=None, description="Id of the called Symbol, or None if unresolved."
     )
     target_name: str = Field(description="Name as written at the call site, e.g. 'helper'.")
-    kind: EdgeKind = EdgeKind.CALLS
     line: int = Field(ge=1, description="1-indexed line the call occurs on.")
 
 

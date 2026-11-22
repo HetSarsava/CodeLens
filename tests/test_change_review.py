@@ -119,7 +119,7 @@ def test_git_diff_new_deleted_staged_and_module_changes(tmp_path):
     assert lines["shop.py"] == {2}
     assert lines["new.py"] == {1, 2}
     assert "New file: new.py" in patch
-    graph = index_repo(repo, use_cache=False)
+    graph = index_repo(repo)
     functions, notes = changed_functions(graph, lines)
     assert {f.symbol.name for f in functions} == {"total", "added"}
     assert any("outside an indexed function" in x for x in notes)
@@ -135,7 +135,7 @@ def test_mutations_preserve_unicode_and_ignore_comments_strings_and_other_lines(
         "# café + True\ndef total(x, discount=0):\n    text = '+ True'\n    return x >= discount\n",
         encoding="utf-8",
     )
-    graph = index_repo(repo, use_cache=False)
+    graph = index_repo(repo)
     functions, _ = changed_functions(graph, {"shop.py": {1, 3, 4}})
     mutations = candidates(repo, functions)
     assert [(m.line, m.original, m.replacement) for m in mutations] == [(4, ">=", "<")]

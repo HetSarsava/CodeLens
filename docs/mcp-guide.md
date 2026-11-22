@@ -1,91 +1,17 @@
-# MCP, using CodeLens as the example
+# Connect CodeLens over MCP
 
-For efficient dependency inspection, call `blast_radius` with `name` directly:
+A coding host launches CodeLens as a local subprocess. The official Python MCP SDK handles tool discovery, input validation, structured results, and JSON-RPC over stdio. The server is bound to the repository selected at startup.
 
-```json
-{"name":"blast_radius","arguments":{"name":"calculate_total","max_depth":3}}
+## Test the connection
+
+From the CodeLens checkout:
+
+```sh
+uv sync --frozen
+uv run --frozen python examples/mcp_client.py tests/fixtures/sample_repo --name add
 ```
 
-No initial `index_repo` or `find_definition` call is required. Results identify
-the target and label immediate callers with `direct: true`; other rows are known
-transitive callers. Read the returned source locations before deciding what to
-edit. If the name is ambiguous, provide its repository-relative `file_path`.
-Follow `next_offset` when present; default pages contain at most 20 symbols.
-Use `find_definition` for location-only questions, with `detail="detailed"` only
-when full metadata/docstrings are needed. Prefer ordinary search for text-only
-tasks or when the graph cannot resolve a dependency.
-
-The server reuses its in-memory graph only while source content is unchanged.
-It re-hashes Python files on each request, so warm queries avoid parsing but are
-not free. Source edits rebuild the graph; restarting the server loses the cache.
-Queries do not create cache files inside your repository.
-
-Design references: [Anthropic's tool guidance](https://www.anthropic.com/engineering/writing-tools-for-agents)
-recommends focused results, pagination and consolidating repeated tool sequences.
-[MCP structured output](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
-documents structured results and text compatibility. CodeLens keeps both SDK
-representations for compatibility; it reduces the payload itself instead of
-removing the text fallback.
-
-## The four concepts to learn first
-
-1. **Host:** the AI application you use.
-2. **Client:** the host's connection to a tool server.
-3. **Server:** CodeLens, which advertises tools and executes requested functions.
-4. **Transport:** stdio carries messages between the local processes.
-
-An LLM can decide which tool to request, but MCP itself does not require an
-LLM. The example client below works without an API key.
-[MCP architecture](https://modelcontextprotocol.io/docs/learn/architecture)
-
-JSON-RPC is the message envelope. A request has a protocol marker,
-method, arguments and an ID. The response repeats the ID and contains a result
-or an error. Notifications omit the ID.
-[JSON-RPC 2.0 specification](https://www.jsonrpc.org/specification)
-
-## Where the JSON-RPC code lives
-
-`src/codelens/mcp_server/server.py` imports `MCPServer` from the official
-Python SDK. `@server.tool()` registers your functions; `server.run(transport="stdio")`
-starts the wire protocol. The installed SDK's
-`mcp/shared/jsonrpc_dispatcher.py` and `mcp/server/stdio.py` implement framing
-and dispatch. You do not need to reimplement them.
-[Official Python SDK](https://github.com/modelcontextprotocol/python-sdk)
-
-For example, after a legacy initialization handshake, a client can send:
-
-```json
-{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"find_definition","arguments":{"name":"add"}}}
-```
-
-CodeLens's SDK routes that to `find_definition(name="add")` and serializes
-the result. This exact transport behavior is tested in `tests/test_mcp.py`.
-
-Protocol versions matter: the older `2025-11-25` lifecycle uses
-`initialize` then `notifications/initialized`; newer `2026-07-28` discovery
-uses `server/discover` and per-request metadata. The SDK negotiates this.
-The raw example above is deliberately the legacy form; let the SDK client
-construct current-version requests.
-[Legacy lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle),
-[current architecture](https://modelcontextprotocol.io/docs/learn/architecture)
-
-## Run a real client without a model
-
-From the repository:
-
-```bash
-uv sync --frozen --extra dev
-uv run python examples/mcp_client.py tests/fixtures/sample_repo --name add
-uv run pytest -q tests/test_mcp.py
-```
-
-The example starts a separate CodeLens server, discovers fourteen tools,
-indexes the sample and queries a definition. The tests additionally exercise
-callers, impact, invalid arguments, write gating, a real codemod, pytest,
-snapshot/rollback and raw JSON-RPC messages.
-
-For an MCP host that accepts an `mcpServers` configuration, adapt these absolute
-paths (the configuration file location depends on your host):
+The example starts an actual server, discovers its ten tools, and calls `blast_radius` on the sample function. It prints JSON that labels direct and transitive callers. For a coding host that accepts an `mcpServers` object:
 
 ```json
 {
@@ -95,42 +21,36 @@ paths (the configuration file location depends on your host):
       "args": [
         "--directory", "/absolute/path/to/CodeLens",
         "run", "--frozen", "codelens-mcp",
-        "--repo", "/absolute/path/to/trusted-python-repository"
+        "--repo", "/absolute/path/to/python-repo"
       ]
     }
   }
 }
 ```
 
-On Windows, use forward slashes in the JSON paths, such as `C:/Projects/CodeLens`.
-Append `--allow-execution` to the argument array only when you want the client
-to execute tests and mutate that repository. No Groq key is needed for MCP tools.
-A client must support local stdio; cloud-only HTTP clients cannot directly
-connect to this server.
+Use absolute paths. Forward slashes work in Windows JSON paths, for example `C:/Projects/CodeLens`. Add `--allow-execution` to enable the review and mutation execution tools for a trusted repository. Follow the [adaptive setup](adaptive-mutation.md) to build the Docker image and register with Codex.
 
-## A simple demo you can explain
+## Tools
 
-1. Call `index_repo`: see symbol and unresolved-edge counts.
-2. Call `find_definition` with a function name: get its stable symbol ID.
-3. Call `find_callers` or `blast_radius` with that ID: inspect only relevant symbols.
-4. For a disposable trusted repo in execution mode, snapshot, apply a codemod,
-   run tests and rollback. The bare MCP tools do not automatically sequence
-   these actions; the pipeline does.
+| Tool | Use |
+|---|---|
+| `index_repo` | Get counts for symbols, edges, unresolved calls, and files. |
+| `find_definition` | Find source locations for a name. |
+| `find_callers` | List direct callers of a resolved symbol. |
+| `blast_radius` | List direct and transitive callers of a function or method. |
+| `review_patch` | Collect execution evidence on a patch and return focused findings. |
+| `read_review_report` | Read the latest patch report and check whether it matches current source. |
+| `prepare_mutation_run` | Freeze a snapshot, run a test baseline, and return mutation targets. |
+| `run_mutation_batch` | Validate agent-proposed edits and test each mutant independently. |
+| `verify_regression_test` | Check a test draft on the original and mutated versions. |
+| `get_mutation_run` | Poll or cancel an operation and retrieve findings. |
 
-The old adapter accepted the whole graph as a query argument. The new adapter
-binds the repo at startup and accepts small query arguments. Existing clients
-using the old signatures must update their calls.
+For impact questions, start with `blast_radius` and pass the function name directly:
 
-## Only the LangGraph basics you need
+```json
+{"name":"blast_radius","arguments":{"name":"calculate_total","max_depth":3}}
+```
 
-Read `pipeline/graph.py`, then `execute_plan_node` in `pipeline/nodes.py`.
-A state dictionary carries values. A node reads it and returns updates.
-Edges say which stage runs next. Compilation builds an executable workflow.
-Invocation starts it. CodeLens uses four sequential stages and ordinary
-Python for per-step work.
-[LangGraph's Graph API](https://docs.langchain.com/oss/python/langgraph/graph-api)
+Include the repository-relative `file_path` if the name is ambiguous. Follow `next_offset` to fetch more symbols. The index is reused while Python source is unchanged. Dynamic calls and unresolved edges limit the results.
 
-Study in this order: this demo, the official MCP architecture overview,
-the JSON-RPC request/response sections, then the small graph file.
-You do not need advanced LangGraph persistence, subgraphs or agent frameworks
-to explain this implementation.
+The integration tests cover tool schemas, discovery, queries, execution gating, and JSON-RPC interoperability. The adaptive mutation tests additionally execute a real client/server workflow from baseline through mutant verification.

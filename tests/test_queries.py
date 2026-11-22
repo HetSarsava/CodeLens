@@ -75,6 +75,16 @@ def test_blast_radius_excludes_self(sample_graph):
     assert add_symbol.id not in affected_ids
 
 
+def test_blast_radius_excludes_recursive_target(tmp_path):
+    (tmp_path / "recursion.py").write_text(
+        "def recurse():\n    return recurse()\n\ndef caller():\n    return recurse()\n",
+        encoding="utf-8",
+    )
+    graph = index_repo(tmp_path)
+    target = _by_qname(graph, "recurse")
+    assert [symbol.name for symbol in blast_radius(graph, target.id)] == ["caller"]
+
+
 def test_blast_radius_respects_max_depth(sample_graph):
     add_symbol = _by_qname(sample_graph, "add")
     depth_one = {s.qualified_name for s in blast_radius(sample_graph, add_symbol.id, max_depth=1)}

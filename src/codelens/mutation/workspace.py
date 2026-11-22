@@ -88,7 +88,7 @@ def validate_scope(root: Path, scope: list[str]) -> None:
 def context(
     root: Path, frozen: Path, focus: list[str], fingerprint: str
 ) -> tuple[list[Target], str]:
-    graph = index_repo(frozen, use_cache=False)
+    graph = index_repo(frozen)
     changed = set(
         git(root, "diff", "--no-ext-diff", "--name-only", "-z", "HEAD", "--").decode().split("\0")
     )
